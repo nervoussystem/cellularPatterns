@@ -14,12 +14,15 @@ float maxDensity2(16);
 float minDensity2(3);
 float anisotrophyStr(1.0f/1.5f);
 
+float minThick = 5.0f; //.05 inches rubber
+float maxThick = 9.9f; //.1 inches rubber
+String imageName = "circles2.png";
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
 bool isOptimizing = false;
 bool record = false;
-bool hasMask = true;
+bool hasMask = true; //if you are using an image to crop the pattern
 
 vector<AnisoPoint2f> nearPts;
 AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
@@ -30,7 +33,7 @@ Mat imgGradX, imgGradY;
 //--------------------------------------------------------------
 void ofApp::setup(){
 	
-	baseImage.load("circles1.png");
+	baseImage.load(imageName);
 	w = baseImage.getWidth();
 	h = baseImage.getHeight();
 	ofSetWindowShape(w, h);
@@ -52,8 +55,13 @@ void ofApp::setup(){
 
 	binW = floor(w / maxDensity) + 1;
 	binH = floor(h / maxDensity) + 1;
-
-	getAnisoPoint = &getAnisoPtImg;// &getAnisoEdge;
+	//important thing
+	//anisotropy function - give it a pt in space and it returns an anisotropic pt
+	//getAnisoPtImg - uses image
+	//getAnisoPtEdge - edge of the screen
+	//getAnisoPtNoise
+	//getAnisoPt - distance from a single Pt
+	getAnisoPoint = &getAnisoPtSet;// &getAnisoEdge;
 
 	linesMesh.setMode(OF_PRIMITIVE_LINES);
 	bins.resize(binW*binH);
@@ -160,8 +168,16 @@ void ofApp::setupStage2() {
 
 //--------------------------------------------------------------
 void ofApp::draw(){
+	
 	ofBackground(255);
-	if (record) ofBeginSaveScreenAsPDF("cells.pdf");
+
+
+	std::ostringstream ss;
+	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << ofGetTimestampString() << ".pdf";
+
+	
+
+	if (record) ofBeginSaveScreenAsPDF(ss.str());
 	//drawPtEllipses();
 	//distImage.draw(0,0);
 	ofSetColor(0);
@@ -172,7 +188,13 @@ void ofApp::draw(){
 		ofVec2f pt = (linesMesh.getVertex(linesMesh.getIndex(i))+ linesMesh.getVertex(linesMesh.getIndex(i + 1)))*.5;
 		AnisoPoint2f cellPt = pts[distances[(w*int(pt.y) + int(pt.x))*3].index];
 		AnisoPoint2f cellPt2 = pts[distances[(w*int(pt.y) + int(pt.x)) * 3+1].index];
+		//stroke
+		//get 2 closest cell pts and use their area  (determinant of their jacobian of the size)
 		float weight = .2/sqrt(cellPt.jacobian->determinant())+ .2 / sqrt(cellPt2.jacobian->determinant());
+
+		//clamp in between min and max stroke weight
+		weight = ofClamp(weight, minThick, maxThick);
+
 		ofSetLineWidth(weight);
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
 		

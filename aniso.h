@@ -39,6 +39,50 @@ inline AnisoPoint2f getAnisoPt(const ofVec3f &pt) {
 	return AnisoPoint2f(pos,jac);
 }
 
+inline AnisoPoint2f getAnisoPtSet(const ofVec3f &pt) {
+	Vector2f pos;
+	pos << pt.x, pt.y;
+	//ofVec2f centerPt(375, 525);
+
+	//jessica do this part
+	ofVec2f pts[3];
+	pts[0] = ofVec2f(665,687);
+	pts[1] = ofVec2f(306,518);
+	pts[2] = ofVec2f(885,374);
+
+	ofVec2f grad;
+	float myLen = 10000000000000;
+	for (auto & a_pt : pts) {
+		ofVec3f myGrad = pt - a_pt;
+		float lenSq = myGrad.lengthSquared();
+		myGrad /= lenSq;
+		//blend effects of the points
+		grad += myGrad;
+
+		float tempLen = sqrt(lenSq);
+		myLen = min(tempLen, myLen);
+
+	}
+
+	//grad.normalize();
+	
+	ofVec2f dir = grad ;
+	dir.normalize();
+
+	float sLerp = (myLen - 7) /300;
+	float size = ofLerp(minDensity, maxDensity, ofClamp(sLerp, 0, 1));
+	
+
+	//float size = ofLerp(minDensity, maxDensity, ofClamp(pt.distance(centerPt) / 500, 0, 1));
+	//end do this stuff
+
+	Matrix2f jac;
+	float anisotropy = anisotrophyStr;// sqrt(3);
+	jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
+	jac = jac.inverse().eval();
+	return AnisoPoint2f(pos, jac);
+}
+
 inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	Vector2f pos;
 	pos << pt.x, pt.y;
