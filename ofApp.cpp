@@ -14,6 +14,8 @@ float maxDensity2(16);
 float minDensity2(3);
 float anisotrophyStr(1.0f/1.5f);
 
+float sizeFallOffExp = .75;
+
 float minThick = 5.0f; //.05 inches rubber
 float maxThick = 9.9f; //.1 inches rubber
 String imageName = "circles2.png";

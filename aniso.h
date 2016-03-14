@@ -12,7 +12,7 @@ extern cv::Mat imgDist;
 extern cv::Mat imgGradX, imgGradY;
 extern vector<AnisoPoint2f> nearPts;
 extern float anisotrophyStr;
-
+extern float sizeFallOffExp;
 extern AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 
 static float noiseScale = .0005;// .001;
@@ -45,39 +45,64 @@ inline AnisoPoint2f getAnisoPtSet(const ofVec3f &pt) {
 	//ofVec2f centerPt(375, 525);
 
 	//jessica do this part
-	ofVec2f pts[3];
-	pts[0] = ofVec2f(665,687);
-	pts[1] = ofVec2f(306,518);
-	pts[2] = ofVec2f(885,374);
+	ofVec2f pts[10];
+	float rads[10];
+
+	pts[0] = ofVec2f(204.0619, 78.5864);
+	rads[0] = 47.3904056688363;
+	pts[1] = ofVec2f(889.6999, 65.147);
+	rads[1] = 47.390406582557;
+	pts[2] = ofVec2f(150.025, 197.5656);
+	rads[2] = 90.0170730790478;
+	pts[3] = ofVec2f(151.7205, 387.6389);
+	rads[3] = 116.209219200039;
+	pts[4] = ofVec2f(306, 518);
+	rads[4] = 161.518673617696;
+	pts[5] = ofVec2f(479.8285, 640.4777);
+	rads[5] = 96.6291955630037;
+	pts[6] = ofVec2f(949.3931, 194.3324);
+	rads[6] = 108.373204962044;
+	pts[7] = ofVec2f(878.2153, 380.0891);
+	rads[7] = 108.373205134504;
+	pts[8] = ofVec2f(827.1151, 564.0065);
+	rads[8] = 121.148480368576;
+	pts[9] = ofVec2f(658.4169, 681.1882);
+	rads[9] = 161.51858343573;
+
 
 	ofVec2f grad;
+	int closest = 0;
 	float myLen = 10000000000000;
-	for (auto & a_pt : pts) {
+	for (int i = 0; i < 10; i++) {
+		ofVec2f & a_pt = pts[i];
 		ofVec3f myGrad = pt - a_pt;
 		float lenSq = myGrad.lengthSquared();
 		myGrad /= lenSq;
 		//blend effects of the points
 		grad += myGrad;
 
-		float tempLen = sqrt(lenSq);
-		myLen = min(tempLen, myLen);
+		float tempLen = sqrt(lenSq)/rads[i];
+		if (tempLen < myLen) { 
+			closest = i; 
+			myLen = tempLen; 
+		}
+		
 
 	}
-
-	//grad.normalize();
 	
 	ofVec2f dir = grad ;
 	dir.normalize();
 
-	float sLerp = (myLen - 7) /300;
-	float size = ofLerp(minDensity, maxDensity, ofClamp(sLerp, 0, 1));
+	float sLerp = (myLen);
+	float localMax = min(maxDensity, rads[closest] / 3.0f);
+	float size = ofLerp(localMax, minDensity, pow(ofClamp(sLerp, 0, 1),sizeFallOffExp));
 	
 
 	//float size = ofLerp(minDensity, maxDensity, ofClamp(pt.distance(centerPt) / 500, 0, 1));
 	//end do this stuff
 
 	Matrix2f jac;
-	float anisotropy = anisotrophyStr;// sqrt(3);
+	float anisotropy = ofLerp(1,anisotrophyStr,sLerp);// sqrt(3);
 	jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
 	jac = jac.inverse().eval();
 	return AnisoPoint2f(pos, jac);
