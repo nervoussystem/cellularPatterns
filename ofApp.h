@@ -35,6 +35,8 @@ class ofApp : public ofBaseApp{
 		OptimizerThread optThread;
 		ccvt::MetricAniso2d metric;
 		ofVboMesh linesMesh;
+		vector<list<int> > polylines;
+		vector<list<int> > cellLines;
 
 		ofImage baseImage;
 		ofImage distImage;

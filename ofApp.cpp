@@ -1,5 +1,6 @@
 #include "ofApp.h"
 #include "constants.h"
+#include "clipper.hpp"
 
 using namespace ofxCv;
 using namespace cv;
@@ -18,7 +19,7 @@ float sizeFallOffExp = .75;
 
 float minThick = 5.0f; //.05 inches rubber
 float maxThick = 9.9f; //.1 inches rubber
-String imageName = "circles2.png";
+String imageName = "circles1.png";
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
@@ -186,13 +187,26 @@ void ofApp::draw(){
 	ofNoFill();
 	//linesMesh.draw();
 	//if (record) {
+	/*
 	for (int i = 0; i < linesMesh.getNumIndices();i+=2) {
 		ofVec2f pt = (linesMesh.getVertex(linesMesh.getIndex(i))+ linesMesh.getVertex(linesMesh.getIndex(i + 1)))*.5;
-		AnisoPoint2f cellPt = pts[distances[(w*int(pt.y) + int(pt.x))*3].index];
-		AnisoPoint2f cellPt2 = pts[distances[(w*int(pt.y) + int(pt.x)) * 3+1].index];
+		int cellIndex1 = distances[(w*int(pt.y) + int(pt.x)) * 3].index;
+		int cellIndex2 = distances[(w*int(pt.y) + int(pt.x)) * 3 + 1].index;
+		int numCell = 0;
+		float weight = 0;
+		if (cellIndex1 < pts.size()) {
+			AnisoPoint2f cellPt = pts[cellIndex1];
+			weight += 1 / sqrt(cellPt.jacobian->determinant());
+			numCell++;
+		}
+		if (cellIndex2 < pts.size()) {
+			AnisoPoint2f cellPt = pts[cellIndex2];
+			weight += 1 / sqrt(cellPt.jacobian->determinant());
+			numCell++;
+		}
 		//stroke
 		//get 2 closest cell pts and use their area  (determinant of their jacobian of the size)
-		float weight = .2/sqrt(cellPt.jacobian->determinant())+ .2 / sqrt(cellPt2.jacobian->determinant());
+		weight *= .35 / numCell;
 
 		//clamp in between min and max stroke weight
 		weight = ofClamp(weight, minThick, maxThick);
@@ -200,6 +214,13 @@ void ofApp::draw(){
 		ofSetLineWidth(weight);
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
 		
+	}*/
+	for (auto & line : cellLines) {
+		ofBeginShape();
+		for (auto & pt : line) {
+			ofVertex(linesMesh.getVertex(pt));
+		}
+		ofEndShape();
 	}
 	if (record) {
 		record = false;
@@ -233,12 +254,12 @@ void ofApp::drawPtEllipses() {
 
 void ofApp::getDistances() {
 	distances.resize(w*h * 3);
-	for (int i = 0; i < distances.size(); ++i) distances[i] = IndexDist(0, 9e9);
+	for (int i = 0; i < distances.size(); ++i) distances[i] = IndexDist(pts.size()+1, 9e9);
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0) {
-					distances[(w*y + x) * 3] = IndexDist(1, 0);
+					distances[(w*y + x) * 3] = IndexDist(pts.size() + 1, 0);
 				}
 			}
 		}
@@ -286,7 +307,15 @@ void ofApp::getDistances() {
 			}
 		}
 	}
-
+	if (hasMask) {
+		for (int y = 0; y < h; ++y) {
+			for (int x = 0; x < w; ++x) {
+				if (imgDist.at<float>(y, x) == 0) {
+					distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
+				}
+			}
+		}
+	}
 }
 
 ofVec2f getVoronoiIntersection(ofVec2f p1, ofVec2f p2, float side1A, float side1B, float side2A, float side2B) {
@@ -317,6 +346,7 @@ void ofApp::dualContour() {
 	}
 	//NOT PROPERLY DOING BOTTOM AND RIGHT EDGE
 	vector<vector<int> > neighbors;
+	vector<set<int> > ptCells;
 	for (int y = 0; y < h - 2; ++y) {
 		int wy = w*y;
 		for (int x = 0; x < w - 2; ++x) {
@@ -357,21 +387,158 @@ void ofApp::dualContour() {
 			if (numInts > 0) {
 				center /= numInts;
 				linesMesh.addVertex(center);
+				neighbors.push_back(vector<int>());
 				int currIndex = linesMesh.getNumVertices() - 1;
+				set<int> ptCell;
+				if (p1.index < pts.size()) ptCell.emplace(p1.index);
+				if (p2.index < pts.size()) ptCell.emplace(p2.index);
+				if (p3.index < pts.size()) ptCell.emplace(p3.index);
+				if (p4.index < pts.size()) ptCell.emplace(p4.index);
+				ptCells.push_back(ptCell);
 				ptIndices[wy + x] = currIndex;
 				if (x > 0 && conLeft) {
+					int nIndex = ptIndices[wy + x - 1];
 					linesMesh.addIndex(currIndex);
-					linesMesh.addIndex(ptIndices[wy+x-1]);
+					linesMesh.addIndex(nIndex);
+
+					neighbors[currIndex].push_back(nIndex);
+					neighbors[nIndex].push_back(currIndex);
 				}
 				if (y > 0 && conUp) {
+					int nIndex = ptIndices[wy + x - w];
 					linesMesh.addIndex(currIndex);
-					linesMesh.addIndex(ptIndices[wy+x-w]);
+					linesMesh.addIndex(nIndex);
+					neighbors[currIndex].push_back(nIndex);
+					neighbors[nIndex].push_back(currIndex);
+
 				}
 			}
 		}
 	}
 
-	vector<bool> processed(linesMesh.getNumVertices(), false);
+	int numPts = linesMesh.getNumVertices();
+	vector<bool> processed(numPts, false);
+	//get boundaries
+	polylines.clear();
+	for (int i = 0; i < numPts; ++i) {
+		if (!processed[i]) {
+			vector<int> neighs = neighbors[i];
+			//normal scenario
+			if (neighs.size() == 2) {
+				list<int> pline;
+				pline.push_back(i);
+				int next = neighs[0];
+				//do one side
+				while (true) {
+					vector<int> neighs2 = neighbors[next];
+					int curr = next;
+					if (neighs2.size() == 2) {
+						if (neighs2[0] == pline.back()) {
+							next = neighs2[1];
+						}
+						else {
+							next = neighs2[0];
+						}
+						pline.push_back(curr);
+						processed[curr] = true;
+					}
+					else {
+						pline.push_back(curr);
+						break;
+					}
+				}
+				next = neighs[1];
+				while (true) {
+					vector<int> neighs2 = neighbors[next];
+					int curr = next;
+					if (neighs2.size() == 2) {
+						if (neighs2[0] == pline.front()) {
+							next = neighs2[1];
+						}
+						else {
+							next = neighs2[0];
+						}
+						pline.push_front(curr);
+						processed[curr] = true;
+					}
+					else {
+						pline.push_front(next);
+						break;
+					}
+				}
+
+				polylines.push_back(pline);
+			}
+			else if (neighs.size() > 2) {
+				for (int j = 0; j < neighs.size(); ++j) {
+					int next = neighs[j];
+					if (next > i && neighbors[next].size() != 2) {
+						list<int> pline;
+						pline.push_back(i);
+						pline.push_back(next);
+						polylines.push_back(pline);
+					}
+				}
+			}
+		}
+	}
+	vector<list<list<int> > > cellPlines(pts.size());
+	for (auto & pline : polylines) {
+		set<int> cells1 = ptCells[pline.front()];
+		set<int> cells2 = ptCells[pline.back()];
+		vector<int> lineCells;
+		set_intersection(cells1.begin(), cells1.end(), cells2.begin(), cells2.end(), back_inserter(lineCells));
+		for (auto & cell : lineCells) {
+			cellPlines[cell].push_back(pline);
+		}
+	}
+
+	cellLines.clear();
+	for (auto & lines : cellPlines) {
+		list<int> cell;
+		if (lines.size() < 2) {
+			cout << "something is wrong with this cell" << endl;
+		}
+		list<int> line = lines.back();
+		lines.pop_back();
+		cell.insert(cell.end(), line.begin(), line.end());
+		while (lines.size() > 0) {
+			bool found = false;
+			for (auto it = lines.begin(); it != lines.end(); ++it) {
+				if (it->front() == cell.back()) {
+					found = true;
+					cell.insert(cell.end(), ++it->begin(), it->end());
+					lines.erase(it);
+					break;
+				}
+				else if(it->back() == cell.back()) {
+					found = true;
+					cell.insert(cell.end(), ++it->rbegin(), it->rend());
+					lines.erase(it);
+					break;
+				}
+				else if (it->front() == cell.front()) {
+					found = true;
+					for (auto it2 = ++it->begin(); it2 != it->end();++it2) {
+						cell.push_front(*it2);
+					}
+					lines.erase(it);
+				}
+				else if (it->back() == cell.front()) {
+					found = true;
+					cell.insert(cell.begin(), it->begin(), --it->end());
+					lines.erase(it);
+				}
+			}
+			if (!found) {
+				cout << "incomplete cell" << endl;
+				break;
+			}
+		}
+		cellLines.push_back(cell);
+	}
+
+
 }
 
 void ofApp::optimize() {
