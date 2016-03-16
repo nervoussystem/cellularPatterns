@@ -1,7 +1,7 @@
 #include "ofApp.h"
 #include "constants.h"
 #include "clipper.hpp"
-
+using namespace ClipperLib;
 using namespace ofxCv;
 using namespace cv;
 
@@ -215,13 +215,23 @@ void ofApp::draw(){
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
 		
 	}*/
-	for (auto & line : cellLines) {
+	for (int i = 0; i < pts.size();++i) {
+		auto & line = cellLines[i];
+		vector<ofVec3f> off = offsetCell(line, pts[i]);
 		ofBeginShape();
-		for (auto & pt : line) {
-			ofVertex(linesMesh.getVertex(pt));
+		for (auto & pt : off) {
+			//ofVertex(linesMesh.getVertex(pt));
+			ofVertex(pt);
 		}
-		ofEndShape();
+		ofEndShape(true);
 	}
+	vector<ofVec3f> off = offsetCell(cellLines.back(),-minThick*0.5);
+	ofBeginShape();
+	for (auto & pt : off) {
+		//ofVertex(linesMesh.getVertex(pt));
+		ofVertex(pt);
+	}
+	ofEndShape(true);
 	if (record) {
 		record = false;
 		ofEndSaveScreenAsPDF();
@@ -254,12 +264,12 @@ void ofApp::drawPtEllipses() {
 
 void ofApp::getDistances() {
 	distances.resize(w*h * 3);
-	for (int i = 0; i < distances.size(); ++i) distances[i] = IndexDist(pts.size()+1, 9e9);
+	for (int i = 0; i < distances.size(); ++i) distances[i] = IndexDist(pts.size(), 9e9);
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0) {
-					distances[(w*y + x) * 3] = IndexDist(pts.size() + 1, 0);
+					distances[(w*y + x) * 3] = IndexDist(pts.size(), 0);
 				}
 			}
 		}
@@ -390,10 +400,10 @@ void ofApp::dualContour() {
 				neighbors.push_back(vector<int>());
 				int currIndex = linesMesh.getNumVertices() - 1;
 				set<int> ptCell;
-				if (p1.index < pts.size()) ptCell.emplace(p1.index);
-				if (p2.index < pts.size()) ptCell.emplace(p2.index);
-				if (p3.index < pts.size()) ptCell.emplace(p3.index);
-				if (p4.index < pts.size()) ptCell.emplace(p4.index);
+				ptCell.emplace(p1.index);
+				ptCell.emplace(p2.index);
+				ptCell.emplace(p3.index);
+				ptCell.emplace(p4.index);
 				ptCells.push_back(ptCell);
 				ptIndices[wy + x] = currIndex;
 				if (x > 0 && conLeft) {
@@ -482,7 +492,7 @@ void ofApp::dualContour() {
 			}
 		}
 	}
-	vector<list<list<int> > > cellPlines(pts.size());
+	vector<list<list<int> > > cellPlines(pts.size()+1);
 	for (auto & pline : polylines) {
 		set<int> cells1 = ptCells[pline.front()];
 		set<int> cells2 = ptCells[pline.back()];
@@ -539,6 +549,66 @@ void ofApp::dualContour() {
 	}
 
 
+}
+
+vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
+	float scaling = 10;
+	ClipperOffset co;
+	Path P;
+	Paths offsetP;
+	float offset = .2 / sqrt(pt.jacobian->determinant());
+
+	for (auto index : crv) {
+		ofVec3f v = linesMesh.getVertex(index);
+		P.push_back(IntPoint(v.x*scaling, v.y*scaling));
+	}
+	co.AddPath(P, jtRound, etClosedPolygon);
+	co.Execute(offsetP, -offset*scaling*2);
+	float radius = offset * 2;
+	int tries = 0;
+	while (offsetP.size() != 1 && tries < 30) {
+		radius *= .98;
+		offsetP.clear();
+		co.Execute(offsetP, -radius*scaling);
+		tries++;
+	}
+	co.Clear();
+	co.AddPath(offsetP[0], jtRound, etClosedPolygon);
+	co.Execute(offsetP,(radius - offset)*scaling);
+	vector<ofVec3f> offsetPts;
+	if (offsetP.size() > 0) {
+		Path & oP = offsetP[0];
+		for (int i = 0; i < oP.size(); i++) {
+			ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
+			offsetPts.push_back(pt3D);
+		}
+	}
+	return offsetPts;
+}
+
+vector<ofVec3f> ofApp::offsetCell(list<int> & crv, float amt) {
+	float scaling = 10;
+	ClipperOffset co;
+	Path P;
+	Paths offsetP;
+	float offset = amt;
+
+	for (auto index : crv) {
+		ofVec3f v = linesMesh.getVertex(index);
+		P.push_back(IntPoint(v.x*scaling, v.y*scaling));
+	}
+	co.AddPath(P, jtRound, etClosedPolygon);
+	co.Execute(offsetP, -offset*scaling);
+
+	vector<ofVec3f> offsetPts;
+	if (offsetP.size() > 0) {
+		Path & oP = offsetP[0];
+		for (int i = 0; i < oP.size(); i++) {
+			ofVec3f pt3D(oP[i].X / scaling, oP[i].Y / scaling);
+			offsetPts.push_back(pt3D);
+		}
+	}
+	return offsetPts;
 }
 
 void ofApp::optimize() {

@@ -38,6 +38,9 @@ class ofApp : public ofBaseApp{
 		vector<list<int> > polylines;
 		vector<list<int> > cellLines;
 
+		vector<ofVec3f> offsetCell(list<int> & crv, AnisoPoint2f & center);
+		vector<ofVec3f> offsetCell(list<int> & crv, float amt);
+
 		ofImage baseImage;
 		ofImage distImage;
 
