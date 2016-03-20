@@ -8,18 +8,19 @@ using namespace cv;
 float w = 750; //750
 float h = 1050; //1000
 
-float maxDensity(50);//150 810
-float minDensity(10);//30  200
+float maxDensity(50);//200 90 //150 810
+float minDensity(14);//18 //30  200
 
-float maxDensity2(16);
-float minDensity2(3);
-float anisotrophyStr(1.0f/1.5f);
+float maxDensity2(80);
+float minDensity2(12);
+float anisotrophyStr(1.4f);
 
+float etchOffset = 2.85;
 float sizeFallOffExp = .75;
 
-float minThick = 5.0f; //.05 inches rubber
-float maxThick = 9.9f; //.1 inches rubber
-String imageName = "circles1.png";
+float minThick = 9.9f; //.05 inches rubber
+float maxThick = minThick*2.0f; //.1 inches rubber
+String imageName = "circle.png";
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
@@ -29,17 +30,65 @@ bool hasMask = true; //if you are using an image to crop the pattern
 
 vector<AnisoPoint2f> nearPts;
 AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
+vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
+vector<string> functionNames;
 
+bool doEtchOffset = true;
 Mat imgDist;
 Mat imgGradX, imgGradY;
 
 //--------------------------------------------------------------
 void ofApp::setup(){
 	
-	baseImage.load(imageName);
+	setupImage(imageName);	
+	
+	//important thing
+	//anisotropy function - give it a pt in space and it returns an anisotropic pt
+	//getAnisoPtImg - uses image
+	//getAnisoPtEdge - edge of the screen
+	//getAnisoPtNoise
+	//getAnisoPt - distance from a single Pt
+	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
+	anisoFunctions.push_back(&getAnisoPt);
+	anisoFunctions.push_back(&getAnisoPtSet);
+	anisoFunctions.push_back(&getAnisoPtNoise);
+	anisoFunctions.push_back(&getAnisoPointPts);
+	anisoFunctions.push_back(&getAnisoPtImg);
+	anisoFunctions.push_back(&getAnisoPtSin);
+	anisoFunctions.push_back(&getAnisoPtBamboo);
+	functionNames.push_back("pt");
+	functionNames.push_back("ptSet");
+	functionNames.push_back("noise");
+	functionNames.push_back("secondStage");
+	functionNames.push_back("img");
+	functionNames.push_back("sin");
+	functionNames.push_back("bamboo");
+	//minDensity = minDensity2;
+	//maxDensity = maxDensity2;
+	setupGui();
+
+	reset();
+}
+
+void ofApp::reset() {
+	binW = floor(w / max(minDensity,maxDensity)) + 1;
+	binH = floor(h / max(minDensity,maxDensity)) + 1;
+
+	linesMesh.setMode(OF_PRIMITIVE_LINES);
+	bins.resize(binW*binH);
+	for (int i = 0; i < bins.size(); ++i)bins.clear();
+	initPts();
+	getDistances();
+	dualContour();
+	offsetCells();
+}
+
+void ofApp::setupImage(string filename) {
+	baseImage.load(filename);
 	w = baseImage.getWidth();
 	h = baseImage.getHeight();
-	ofSetWindowShape(w, h);
+	ofSetWindowShape(w+300, h);
+
 	Mat initImg(baseImage.getHeight(), baseImage.getWidth(), CV_8UC1);
 	cvtColor(toCv(baseImage), initImg, COLOR_BGR2GRAY);
 	//toCv(baseImage).copyTo(initImg);
@@ -52,25 +101,27 @@ void ofApp::setup(){
 	Scharr(tempImg1, imgGradX, CV_32F, 1, 0);
 	Scharr(tempImg2, imgGradY, CV_32F, 0, 1);
 	toOf(imgDist, distImage);
-	
-	//minDensity = minDensity2;
-	//maxDensity = maxDensity2;
+}
 
-	binW = floor(w / maxDensity) + 1;
-	binH = floor(h / maxDensity) + 1;
-	//important thing
-	//anisotropy function - give it a pt in space and it returns an anisotropic pt
-	//getAnisoPtImg - uses image
-	//getAnisoPtEdge - edge of the screen
-	//getAnisoPtNoise
-	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSet;// &getAnisoEdge;
+void ofApp::setupGui() {
+	gui = new ofxDatGui();
+	gui->onButtonEvent(this, &ofApp::buttonEvent);
 
-	linesMesh.setMode(OF_PRIMITIVE_LINES);
-	bins.resize(binW*binH);
-	initPts();
-	getDistances();
-	dualContour();
+	ofxDatGuiSlider * slider = gui->addSlider("min density", 2, 200, minDensity);
+	slider->bind(minDensity);
+	slider = gui->addSlider("max density", 2, 300, maxDensity);
+	slider->bind(maxDensity);
+	slider = gui->addSlider("anisotropy", .5, 2, anisotrophyStr);
+	slider->bind(anisotrophyStr);
+	slider = gui->addSlider("min thickness", 2, 20, minThick);
+	slider->bind(minThick);
+	slider = gui->addSlider("max thickness", 2, 40, maxThick);
+	slider->bind(maxThick);
+
+	ofxDatGuiDropdown * functionDd = gui->addDropdown("functions", functionNames);
+	functionDd->onDropdownEvent(this, &ofApp::setFunction);
+	gui->addButton("reset");
+	gui->addButton("optimize");
 }
 
 void ofApp::initPts() {
@@ -99,9 +150,10 @@ void ofApp::initPts() {
 bool ofApp::addPt(ofVec3f & pt) {
 	MyPoint aniPt = getAnisoPoint(pt);
 
-	int sx = (int)(pt.x / maxDensity);
-	int sy = (int)(pt.y / maxDensity);
-	int sz = (int)(pt.z / maxDensity);
+	float binSize = max(maxDensity, minDensity);
+	int sx = (int)(pt.x / binSize);
+	int sy = (int)(pt.y / binSize);
+	int sz = (int)(pt.z / binSize);
 	int minX = max<int>(sx - 1, 0);
 	int maxX = min<int>(sx + 1, binW - 1);
 	int minY = max<int>(sy - 1, 0);
@@ -139,6 +191,7 @@ void ofApp::update(){
 			pts = optThread.pts;
 			getDistances();
 			dualContour();
+			offsetCells();
 			cout << "done" << endl;
 		}
 		else if (ofGetFrameNum() % 20 == 0) {
@@ -147,6 +200,7 @@ void ofApp::update(){
 			optThread.unlock();
 			getDistances();
 			dualContour();
+			offsetCells();
 		}
 	}
 }
@@ -154,19 +208,10 @@ void ofApp::update(){
 void ofApp::setupStage2() {
 	nearPts = pts;
 	getAnisoPoint = &getAnisoPointPts;
-	minDensity /= 7;// 8;// = minDensity2;
-	maxDensity /= 7;// 8;// = maxDensity2;
-	binW = floor(w / maxDensity) + 1;
-	binH = floor(h / maxDensity) + 1;
-
-	bins.resize(binW*binH);
-	for (auto & bin : bins) {
-		bin.clear();
-	}
-
-	initPts();
-	getDistances();
-	dualContour();
+	minDensity  = minDensity2;
+	maxDensity  = maxDensity2;
+	anisotrophyStr = 1.4;// 1.0f / 1.4f;
+	reset();
 }
 
 //--------------------------------------------------------------
@@ -178,8 +223,8 @@ void ofApp::draw(){
 	std::ostringstream ss;
 	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << ofGetTimestampString() << ".pdf";
 
-	
-
+	ofPushMatrix();
+	ofTranslate(300, 0);
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
 	//drawPtEllipses();
 	//distImage.draw(0,0);
@@ -215,27 +260,20 @@ void ofApp::draw(){
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
 		
 	}*/
-	for (int i = 0; i < pts.size();++i) {
-		auto & line = cellLines[i];
-		vector<ofVec3f> off = offsetCell(line, pts[i]);
+	for (auto & cell : cellOffsets) {
 		ofBeginShape();
-		for (auto & pt : off) {
-			//ofVertex(linesMesh.getVertex(pt));
+		for (auto & pt : cell) {
 			ofVertex(pt);
 		}
 		ofEndShape(true);
 	}
-	vector<ofVec3f> off = offsetCell(cellLines.back(),-minThick*0.5);
-	ofBeginShape();
-	for (auto & pt : off) {
-		//ofVertex(linesMesh.getVertex(pt));
-		ofVertex(pt);
-	}
-	ofEndShape(true);
 	if (record) {
 		record = false;
 		ofEndSaveScreenAsPDF();
 	}
+
+	ofPopMatrix();
+
 }
 
 void ofApp::drawPtEllipses() {
@@ -442,7 +480,7 @@ void ofApp::dualContour() {
 				while (true) {
 					vector<int> neighs2 = neighbors[next];
 					int curr = next;
-					if (neighs2.size() == 2) {
+					if (neighs2.size() == 2 && !processed[curr]) {
 						if (neighs2[0] == pline.back()) {
 							next = neighs2[1];
 						}
@@ -461,7 +499,7 @@ void ofApp::dualContour() {
 				while (true) {
 					vector<int> neighs2 = neighbors[next];
 					int curr = next;
-					if (neighs2.size() == 2) {
+					if (neighs2.size() == 2 && !processed[curr]) {
 						if (neighs2[0] == pline.front()) {
 							next = neighs2[1];
 						}
@@ -508,6 +546,8 @@ void ofApp::dualContour() {
 		list<int> cell;
 		if (lines.size() < 2) {
 			cout << "something is wrong with this cell" << endl;
+			cellLines.push_back(cell);
+			continue;
 		}
 		list<int> line = lines.back();
 		lines.pop_back();
@@ -551,32 +591,36 @@ void ofApp::dualContour() {
 
 }
 
+void ofApp::offsetCells() {
+	cellOffsets.clear();
+	for (int i = 0; i < pts.size(); ++i) {
+		auto & line = cellLines[i];
+		cellOffsets.push_back(offsetCell(line, pts[i]));
+	}
+	cellOffsets.push_back(offsetCell(cellLines.back(), -(minThick + maxThick)*0.25));
+}
+
 vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 	float scaling = 10;
 	ClipperOffset co;
 	Path P;
 	Paths offsetP;
-	float offset = .2 / sqrt(pt.jacobian->determinant());
+	float offset = ofClamp(.2 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
 
 	for (auto index : crv) {
 		ofVec3f v = linesMesh.getVertex(index);
 		P.push_back(IntPoint(v.x*scaling, v.y*scaling));
 	}
 	co.AddPath(P, jtRound, etClosedPolygon);
-	co.Execute(offsetP, -offset*scaling*2);
-	float radius = offset * 2;
-	int tries = 0;
-	while (offsetP.size() != 1 && tries < 30) {
-		radius *= .98;
-		offsetP.clear();
-		co.Execute(offsetP, -radius*scaling);
-		tries++;
-	}
-	co.Clear();
-	co.AddPath(offsetP[0], jtRound, etClosedPolygon);
-	co.Execute(offsetP,(radius - offset)*scaling);
+	co.Execute(offsetP, -offset*scaling);
 	vector<ofVec3f> offsetPts;
 	if (offsetP.size() > 0) {
+		//visual offset for etching
+		if (doEtchOffset) {
+			co.Clear();
+			co.AddPaths(offsetP, jtRound, etClosedPolygon);
+			co.Execute(offsetP, etchOffset*scaling);
+		}
 		Path & oP = offsetP[0];
 		for (int i = 0; i < oP.size(); i++) {
 			ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
@@ -602,6 +646,12 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, float amt) {
 
 	vector<ofVec3f> offsetPts;
 	if (offsetP.size() > 0) {
+		//visual offset for etching
+		if (doEtchOffset) {
+			co.Clear();
+			co.AddPaths(offsetP, jtRound, etClosedPolygon);
+			co.Execute(offsetP, -etchOffset*scaling);
+		}
 		Path & oP = offsetP[0];
 		for (int i = 0; i < oP.size(); i++) {
 			ofVec3f pt3D(oP[i].X / scaling, oP[i].Y / scaling);
@@ -638,6 +688,10 @@ void ofApp::keyPressed(int key){
 		break;
 	case 'a':
 		anisotrophyStr = 1.0 / anisotrophyStr;
+		break;
+	case 'e':
+		doEtchOffset = !doEtchOffset;
+		offsetCells();
 		break;
 	}
 }
@@ -689,5 +743,17 @@ void ofApp::gotMessage(ofMessage msg){
 
 //--------------------------------------------------------------
 void ofApp::dragEvent(ofDragInfo dragInfo){ 
+	setupImage(dragInfo.files[0]);
+}
 
+void ofApp::setFunction(ofxDatGuiDropdownEvent e) {
+	getAnisoPoint = anisoFunctions[e.child];
+}
+
+void ofApp::buttonEvent(ofxDatGuiButtonEvent e) {
+	if (e.target->is("reset")) {
+		reset();
+	} else if (e.target->is("optimize")) {
+		optimize();
+	}
 }

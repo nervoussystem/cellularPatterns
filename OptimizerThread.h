@@ -30,14 +30,14 @@ public:
 		//get random pt
 		ofVec3f initPt(ofRandom(w), ofRandom(h), 0);
 		//mask 
-		if (!hasMask || imgDist.at<float>((int)initPt.y, (int)initPt.x) <= 0) return false;
+		if (hasMask && imgDist.at<float>((int)initPt.y, (int)initPt.x) <= 0) return false;
 		MyPoint aniInitPt = getAnisoPoint(initPt);
 		Matrix2f inverse = (*aniInitPt.jacobian).inverse();
 		Vector2f spherePt(ofRandom(-1, 1), ofRandom(-1, 1));
 		while (spherePt.squaredNorm() > 1) {
 			spherePt = Vector2f(ofRandom(-1, 1), ofRandom(-1, 1));
 		}
-		spherePt *= 1.0 / minDensity;
+		spherePt *= 1.0 / min(maxDensity,minDensity);
 		if (metric.distance_square(Vector2f::Zero(), spherePt, inverse) < 1) {
 			Vector2f finalPt = inverse*spherePt;
 			*retPt.pt = finalPt;

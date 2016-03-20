@@ -5,6 +5,7 @@
 #include "OptimizerThread.h"
 #include "aniso.h"
 #include "ofxCv.h"
+#include "ofxDatGui.h"
 
 
 struct IndexDist {
@@ -29,6 +30,12 @@ class ofApp : public ofBaseApp{
 		void drawPtEllipses();
 		void optimize();
 
+		ofxDatGui * gui;
+		void setupGui();
+
+		void setupImage(string filename);
+		void reset();
+
 		vector<AnisoPoint2f> pts;
 
 		vector<IndexDist> distances;
@@ -37,6 +44,7 @@ class ofApp : public ofBaseApp{
 		ofVboMesh linesMesh;
 		vector<list<int> > polylines;
 		vector<list<int> > cellLines;
+		vector<vector<ofVec3f> > cellOffsets;
 
 		vector<ofVec3f> offsetCell(list<int> & crv, AnisoPoint2f & center);
 		vector<ofVec3f> offsetCell(list<int> & crv, float amt);
@@ -47,8 +55,11 @@ class ofApp : public ofBaseApp{
 		void getDistances();
 		void dualContour();
 
+		void offsetCells();
 		void setupStage2();
 
+		void buttonEvent(ofxDatGuiButtonEvent e);
+		void setFunction(ofxDatGuiDropdownEvent e);
 		void keyPressed(int key);
 		void keyReleased(int key);
 		void mouseMoved(int x, int y );
