@@ -16,6 +16,8 @@ float minDensity2(12);
 float anisotrophyStr(1.4f);
 
 float etchOffset = 2.85;
+bool doSmooth = true;
+float filletPercent = .8;
 float sizeFallOffExp = .75;
 
 float minThick = 9.9f; //.05 inches rubber
@@ -33,7 +35,7 @@ AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
-bool doEtchOffset = true;
+bool doEtchOffset = false;
 Mat imgDist;
 Mat imgGradX, imgGradY;
 
@@ -108,16 +110,20 @@ void ofApp::setupGui() {
 	gui->onButtonEvent(this, &ofApp::buttonEvent);
 
 	ofxDatGuiSlider * slider = gui->addSlider("min density", 2, 200, minDensity);
-	slider->bind(minDensity);
+	slider->bind(&minDensity,2,200);
 	slider = gui->addSlider("max density", 2, 300, maxDensity);
-	slider->bind(maxDensity);
+	slider->bind(&maxDensity,2,300);
 	slider = gui->addSlider("anisotropy", .5, 2, anisotrophyStr);
-	slider->bind(anisotrophyStr);
+	slider->bind(&anisotrophyStr,0.5,2);
 	slider = gui->addSlider("min thickness", 2, 20, minThick);
-	slider->bind(minThick);
+	slider->bind(&minThick,2,40);
 	slider = gui->addSlider("max thickness", 2, 40, maxThick);
-	slider->bind(maxThick);
+	slider->bind(&maxThick,2,40);
 
+	slider = gui->addSlider("fillet percent", .25, .99);
+	slider->bind(&filletPercent, .25, .99);
+
+	gui->addToggle("smoothing", doSmooth);
 	ofxDatGuiDropdown * functionDd = gui->addDropdown("functions", functionNames);
 	functionDd->onDropdownEvent(this, &ofApp::setFunction);
 	gui->addButton("reset");
@@ -601,33 +607,89 @@ void ofApp::offsetCells() {
 }
 
 vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
-	float scaling = 10;
+	float scaling = 10000;
 	ClipperOffset co;
+	co.ArcTolerance = 1;
 	Path P;
 	Paths offsetP;
 	float offset = ofClamp(.2 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
 
-	for (auto index : crv) {
-		ofVec3f v = linesMesh.getVertex(index);
-		P.push_back(IntPoint(v.x*scaling, v.y*scaling));
-	}
-	co.AddPath(P, jtRound, etClosedPolygon);
-	co.Execute(offsetP, -offset*scaling);
-	vector<ofVec3f> offsetPts;
-	if (offsetP.size() > 0) {
-		//visual offset for etching
-		if (doEtchOffset) {
+	if (doSmooth) {
+		ofVec2f center;
+		for (auto index : crv) {
+			ofVec3f v = linesMesh.getVertex(index);
+			Vector2f p(v.x, v.y);
+			p = (*pt.jacobian)*p;
+			IntPoint iPt(p.coeff(0) * scaling, p.coeff(1) * scaling);
+			P.push_back(iPt);
+			center += ofVec2f(iPt.X, iPt.Y);
+		}
+		center /= crv.size();
+		Paths simplerP;
+		SimplifyPolygon(P, simplerP);
+		co.AddPaths(simplerP, jtRound, etClosedPolygon);
+		float radius = 9e20;
+
+		//estimate radius
+		for (auto & iPt : P) {
+			radius = min(radius, (iPt.X - center.x)*(iPt.X - center.x) + (iPt.Y - center.y)*(iPt.Y - center.y));
+		}
+		radius = sqrt(radius);
+
+		co.Execute(offsetP, -radius);
+		int tries = 0;
+		while (offsetP.size() == 0 && tries < 50) {
+			radius *= .95;
+			co.Execute(offsetP, -radius);
+			tries++;
+		}
+		radius *= filletPercent;
+		co.Execute(offsetP, -radius);
+		//co.Execute(offsetP, -offset*scaling);
+		vector<ofVec3f> offsetPts;
+		if (offsetP.size() > 0) {
+			//visual offset for etching
 			co.Clear();
 			co.AddPaths(offsetP, jtRound, etClosedPolygon);
-			co.Execute(offsetP, etchOffset*scaling);
+			co.Execute(offsetP, radius);
+			
+			Matrix2f inverse = pt.jacobian->inverse();
+			for (auto & oP : offsetP) {
+				//Path & oP = offsetP[0];
+				for (int i = 0; i < oP.size(); i++) {
+					//ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
+					Vector2f anisoPt(oP[i].X / scaling, oP[i].Y / scaling);
+					anisoPt = inverse*anisoPt;
+					offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
+				}
+			}
 		}
-		Path & oP = offsetP[0];
-		for (int i = 0; i < oP.size(); i++) {
-			ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
-			offsetPts.push_back(pt3D);
-		}
+		return offsetPts;
 	}
-	return offsetPts;
+	else {
+		for (auto index : crv) {
+			ofVec3f v = linesMesh.getVertex(index);
+			IntPoint iPt(v.x * scaling, v.y * scaling);
+			P.push_back(iPt);
+		}
+		co.AddPath(P, jtRound, etClosedPolygon);
+		co.Execute(offsetP, -offset*scaling);
+		vector<ofVec3f> offsetPts;
+		if (offsetP.size() > 0) {
+			if (doEtchOffset) {
+				co.Clear();
+				co.AddPaths(offsetP, jtRound, etClosedPolygon);
+				co.Execute(offsetP, etchOffset*scaling);
+			}
+			Path & oP = offsetP[0];
+			for (int i = 0; i < oP.size(); i++) {
+				ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
+				offsetPts.push_back(pt3D);
+			}
+		}
+		return offsetPts;
+	}
+
 }
 
 vector<ofVec3f> ofApp::offsetCell(list<int> & crv, float amt) {
@@ -755,5 +817,8 @@ void ofApp::buttonEvent(ofxDatGuiButtonEvent e) {
 		reset();
 	} else if (e.target->is("optimize")) {
 		optimize();
+	}
+	else if (e.target->is("smoothing")) {
+		doSmooth = e.target->getEnabled();
 	}
 }
