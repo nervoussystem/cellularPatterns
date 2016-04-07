@@ -209,6 +209,25 @@ inline AnisoPoint2f getAnisoPtSin(const ofVec3f &pt) {
 	return AnisoPoint2f(pos, jac);
 }
 
+inline AnisoPoint2f getAnisoPtUniform(const ofVec3f &pt) {
+	Vector2f pos;
+	pos << pt.x, pt.y;
+	//ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
+	ofVec2f dir(1, 0);
+	dir.normalize();
+
+	float size = minDensity;
+
+	Matrix2f jac;
+	float anisotropy = anisotrophyStr;// sqrt(3);
+													//jac << size*1.5*dir.y, size*.75*dir.x, -size*1.5*dir.x, size*0.75*dir.y;
+	jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
+	//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
+	//jac << size, 0.0, 0.0, size;
+	jac = jac.inverse().eval();
+	return AnisoPoint2f(pos, jac);
+}
+
 
 inline AnisoPoint2f getAnisoEdge(const ofVec3f &pt) {
 	Vector2f pos;

@@ -57,6 +57,7 @@ class ofApp : public ofBaseApp{
 
 		void offsetCells();
 		void setupStage2();
+		void resetAnisotropy();
 
 		void buttonEvent(ofxDatGuiButtonEvent e);
 		void setFunction(ofxDatGuiDropdownEvent e);

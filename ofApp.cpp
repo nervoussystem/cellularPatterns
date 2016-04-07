@@ -22,6 +22,7 @@ float minThick = 9.9f; //.05 inches rubber
 float maxThick = minThick*2.0f; //.1 inches rubber
 String imageName = "circle.png";
 
+float auxeticity = .5;
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
 bool isOptimizing = false;
@@ -33,7 +34,7 @@ AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
-bool doEtchOffset = true;
+bool doEtchOffset = false;
 Mat imgDist;
 Mat imgGradX, imgGradY;
 
@@ -48,7 +49,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtUniform;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
 	anisoFunctions.push_back(&getAnisoPtNoise);
@@ -56,6 +57,7 @@ void ofApp::setup(){
 	anisoFunctions.push_back(&getAnisoPtImg);
 	anisoFunctions.push_back(&getAnisoPtSin);
 	anisoFunctions.push_back(&getAnisoPtBamboo);
+	anisoFunctions.push_back(&getAnisoPtUniform);
 	functionNames.push_back("pt");
 	functionNames.push_back("ptSet");
 	functionNames.push_back("noise");
@@ -63,6 +65,7 @@ void ofApp::setup(){
 	functionNames.push_back("img");
 	functionNames.push_back("sin");
 	functionNames.push_back("bamboo");
+	functionNames.push_back("uniform");
 	//minDensity = minDensity2;
 	//maxDensity = maxDensity2;
 	setupGui();
@@ -117,6 +120,8 @@ void ofApp::setupGui() {
 	slider->bind(minThick);
 	slider = gui->addSlider("max thickness", 2, 40, maxThick);
 	slider->bind(maxThick);
+	slider = gui->addSlider("auxeticity", -2, 2, auxeticity);
+	slider->bind(auxeticity);
 
 	ofxDatGuiDropdown * functionDd = gui->addDropdown("functions", functionNames);
 	functionDd->onDropdownEvent(this, &ofApp::setFunction);
@@ -202,6 +207,14 @@ void ofApp::update(){
 			dualContour();
 			offsetCells();
 		}
+	}
+}
+
+void ofApp::resetAnisotropy() {
+	for (int i = 0; i < pts.size(); ++i) {
+		AnisoPoint2f & pt = pts[i];
+		AnisoPoint2f newPt = getAnisoPoint(ofVec3f(pt[0], pt[1]));
+		pt = newPt;
 	}
 }
 
@@ -588,6 +601,27 @@ void ofApp::dualContour() {
 		cellLines.push_back(cell);
 	}
 
+	//auxetic deform cellLines
+	vector<ofVec3f> newPos(linesMesh.getNumVertices());
+	vector<int> inf(linesMesh.getNumVertices(), 0);
+	for (int i = 0; i < pts.size(); ++i) {
+		list<int> & line = cellLines[i];
+		AnisoPoint2f &center = pts[i];
+		ofVec2f centerPt(center[0], center[1]);
+		for (int index : line) {
+			ofVec2f pt = linesMesh.getVertex(index);
+			metric.distance_square(*center.pt, Vector2f(pt.x,pt.y), *center.jacobian);
+			pt -= centerPt;
+			float angle = atan2(pt.y, pt.x);
+			float r = auxeticity*(pow((cos(angle*2)+1)*0.5, 1.0)*.5);
+			pt *= r;
+			newPos[index] += pt;
+			inf[index]++;
+		}
+	}
+	for (int i = 0; i < linesMesh.getNumVertices(); ++i) {
+		linesMesh.getVertices()[i] += newPos[i] / inf[i];
+	}
 
 }
 
@@ -687,7 +721,11 @@ void ofApp::keyPressed(int key){
 		record = true;
 		break;
 	case 'a':
-		anisotrophyStr = 1.0 / anisotrophyStr;
+		//anisotrophyStr = 1.0 / anisotrophyStr;
+		resetAnisotropy();
+		getDistances();
+		dualContour();
+		offsetCells();
 		break;
 	case 'e':
 		doEtchOffset = !doEtchOffset;

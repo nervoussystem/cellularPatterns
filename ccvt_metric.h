@@ -111,13 +111,14 @@ namespace ccvt {
   struct MetricAniso2d {
 
     inline double distance(const Vector2f& p1, const Vector2f& p2, const Matrix2f& transform) const {
-      return sqrt(distance_square(p1, p2, transform));
+		return sqrt(distance_square(p1, p2, transform));
     }
 
     inline double distance_square(const Vector2f& p1, const Vector2f& p2, const Matrix2f& jacobian) const {
       double distanceSquare = 0;
 	  Vector2f v = p2-p1;
-	  distanceSquare = (jacobian*v).transpose()*(jacobian*v);
+	  Vector2f jv = jacobian*v;
+	  distanceSquare = jv.transpose()*jv;
       return distanceSquare;
     }
 
@@ -128,14 +129,16 @@ namespace ccvt {
     inline double distance_square(const AnisoPoint2f& p1, const AnisoPoint2f& p2) const {
       double distanceSquare = 0;
 	  Vector2f v = *p2.pt-*p1.pt;
-	  distanceSquare = ((*p1.jacobian)*v).transpose()*((*p1.jacobian)*v);
+	  Vector2f jv = *p1.jacobian*v;
+	  distanceSquare = jv.transpose()*jv;
       return distanceSquare;
     }
 
 	inline double distance_square(const AnisoPoint2f& p1, const Vector2f& p2) const {
       double distanceSquare = 0;
 	  Vector2f v = p2-*p1.pt;
-	  distanceSquare = ((*p1.jacobian)*v).transpose()*((*p1.jacobian)*v);
+	  Vector2f jv = *p1.jacobian*v;
+	  distanceSquare = jv.transpose()*jv;
       return distanceSquare;
     }
 
@@ -143,17 +146,18 @@ namespace ccvt {
       AnisoPoint2f centroid;
 
 	  Matrix2f f;
+	  f.setZero();
       int pointsSize = static_cast<int>(points.size());
       for (int j = 0; j < pointsSize; ++j) {
 		const AnisoPoint2f &pt = points[j];
 		Matrix2f jac = (*pt.jacobian).transpose()*(*pt.jacobian);
-		//(*centroid.pt) += jac*(*pt.pt);
-		(*centroid.pt) += *pt.pt;
+		(*centroid.pt) += jac*(*pt.pt);
+		//(*centroid.pt) += *pt.pt;
 		f += jac;
       }
 	  
-	  //(*centroid.pt) = f.inverse()*(*centroid.pt);
-	  (*centroid.pt) *= 1.0/pointsSize;
+	  (*centroid.pt) = f.inverse()*(*centroid.pt);
+	  //(*centroid.pt) *= 1.0/pointsSize;
 	  centroid = getAnisoPoint(ofVec3f(centroid[0], centroid[1]));
       return centroid;
     }
