@@ -46,6 +46,8 @@ class ofApp : public ofBaseApp{
 		vector<list<int> > cellLines;
 		vector<vector<ofVec3f> > cellOffsets;
 
+		void drawBuckled();
+
 		vector<ofVec3f> offsetCell(list<int> & crv, AnisoPoint2f & center);
 		vector<ofVec3f> offsetCell(list<int> & crv, float amt);
 
@@ -56,6 +58,7 @@ class ofApp : public ofBaseApp{
 		void dualContour();
 
 		void offsetCells();
+		void simplifyCells();
 		void setupStage2();
 		void resetAnisotropy();
 

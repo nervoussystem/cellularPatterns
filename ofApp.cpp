@@ -83,7 +83,8 @@ void ofApp::reset() {
 	initPts();
 	getDistances();
 	dualContour();
-	offsetCells();
+	simplifyCells();
+	//offsetCells();
 }
 
 void ofApp::setupImage(string filename) {
@@ -196,7 +197,8 @@ void ofApp::update(){
 			pts = optThread.pts;
 			getDistances();
 			dualContour();
-			offsetCells();
+			simplifyCells();
+			//offsetCells();
 			cout << "done" << endl;
 		}
 		else if (ofGetFrameNum() % 20 == 0) {
@@ -205,7 +207,8 @@ void ofApp::update(){
 			optThread.unlock();
 			getDistances();
 			dualContour();
-			offsetCells();
+			simplifyCells();
+			//offsetCells();
 		}
 	}
 }
@@ -273,6 +276,19 @@ void ofApp::draw(){
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
 		
 	}*/
+
+	drawBuckled();
+	/*
+	for (auto & lines : cellLines) {
+		ofBeginShape();
+		for (auto & i : lines) {
+			ofVertex(linesMesh.getVertex(i));
+		}
+
+		ofEndShape();
+	}
+	*/
+	/*
 	for (auto & cell : cellOffsets) {
 		ofBeginShape();
 		for (auto & pt : cell) {
@@ -280,6 +296,7 @@ void ofApp::draw(){
 		}
 		ofEndShape(true);
 	}
+	*/
 	if (record) {
 		record = false;
 		ofEndSaveScreenAsPDF();
@@ -287,6 +304,40 @@ void ofApp::draw(){
 
 	ofPopMatrix();
 
+}
+
+void ofApp::drawBuckled() {
+	//assign direction
+	vector<int> nodeDir(linesMesh.getNumVertices(), 0);
+	for (int i = 0; i < linesMesh.getNumVertices(); ++i) {
+		nodeDir[i] = ofNoise(linesMesh.getVertex(i))*2;
+	}
+	for (auto & lines : cellLines) {
+		int prevIndex = lines.back();
+		for (auto it = lines.begin(); it != lines.end(); ++it) {
+			int index = *it;
+
+			ofVec3f pt1 = linesMesh.getVertex(prevIndex);
+			ofVec3f pt2 = linesMesh.getVertex(index);
+			ofVec3f dir = pt2 - pt1;
+			float len = dir.length();
+
+			dir /= len;
+			ofVec3f perp = dir.getRotated(90, ofVec3f(0, 0, 1));
+			ofBeginShape();
+			float buckles = 2.0;
+			float flip = 0.5;
+			if (nodeDir[index] != nodeDir[prevIndex]) { buckles = 1.0; flip = 1.0; }
+			if (nodeDir[prevIndex] == 0) flip *= -1;
+			for (int i = 0; i <= 10; ++i) {
+				ofVertex(pt1 + dir*i*len / 10 + flip*len*0.25*sin(i / 10.0 * PI*buckles)*perp);
+			}
+			ofEndShape();
+
+			prevIndex = index;
+		}
+
+	}
 }
 
 void ofApp::drawPtEllipses() {
@@ -625,6 +676,24 @@ void ofApp::dualContour() {
 
 }
 
+void ofApp::simplifyCells() {
+	vector<int> numCells(linesMesh.getNumVertices(), 0);
+	for (auto & lines : cellLines) {
+		for (auto i : lines) {
+			numCells[i]++;
+		}
+	}
+	for (auto & lines : cellLines) {
+		for (auto it = lines.begin(); it != lines.end();) {
+			if (numCells[*it] > 2) {
+				it++;
+			}
+			else {
+				it = lines.erase(it);
+			}
+		}
+	}
+}
 void ofApp::offsetCells() {
 	cellOffsets.clear();
 	for (int i = 0; i < pts.size(); ++i) {
@@ -725,11 +794,11 @@ void ofApp::keyPressed(int key){
 		resetAnisotropy();
 		getDistances();
 		dualContour();
-		offsetCells();
+		//offsetCells();
 		break;
 	case 'e':
 		doEtchOffset = !doEtchOffset;
-		offsetCells();
+		//offsetCells();
 		break;
 	}
 }
