@@ -45,6 +45,8 @@ class ofApp : public ofBaseApp{
 		vector<list<int> > polylines;
 		vector<list<int> > cellLines;
 		vector<vector<ofVec3f> > cellOffsets;
+		vector<int> nodeAssignment;
+		void assignNodesGreedy();
 
 		void drawBuckled();
 

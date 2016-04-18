@@ -313,6 +313,7 @@ void ofApp::drawBuckled() {
 		nodeDir[i] = ofNoise(linesMesh.getVertex(i))*2;
 	}
 	for (auto & lines : cellLines) {
+		ofBeginShape();
 		int prevIndex = lines.back();
 		for (auto it = lines.begin(); it != lines.end(); ++it) {
 			int index = *it;
@@ -324,18 +325,17 @@ void ofApp::drawBuckled() {
 
 			dir /= len;
 			ofVec3f perp = dir.getRotated(90, ofVec3f(0, 0, 1));
-			ofBeginShape();
 			float buckles = 2.0;
 			float flip = 0.5;
-			if (nodeDir[index] != nodeDir[prevIndex]) { buckles = 1.0; flip = 1.0; }
-			if (nodeDir[prevIndex] == 0) flip *= -1;
-			for (int i = 0; i <= 10; ++i) {
-				ofVertex(pt1 + dir*i*len / 10 + flip*len*0.25*sin(i / 10.0 * PI*buckles)*perp);
+			if (nodeAssignment[index] != nodeAssignment[prevIndex]) { buckles = 1.0; flip = 1.0; }
+			if (nodeAssignment[prevIndex] == 0) flip *= -1;
+			for (int i = 0; i < 12; ++i) {
+				ofVertex(pt1 + dir*i*len / 12 + auxeticity*flip*len*0.25*sin(i / 12.0 * PI*buckles)*perp);
 			}
-			ofEndShape();
 
 			prevIndex = index;
 		}
+		ofEndShape(true);
 
 	}
 }
@@ -653,6 +653,7 @@ void ofApp::dualContour() {
 	}
 
 	//auxetic deform cellLines
+	/*
 	vector<ofVec3f> newPos(linesMesh.getNumVertices());
 	vector<int> inf(linesMesh.getNumVertices(), 0);
 	for (int i = 0; i < pts.size(); ++i) {
@@ -673,6 +674,7 @@ void ofApp::dualContour() {
 	for (int i = 0; i < linesMesh.getNumVertices(); ++i) {
 		linesMesh.getVertices()[i] += newPos[i] / inf[i];
 	}
+	*/
 
 }
 
@@ -693,7 +695,70 @@ void ofApp::simplifyCells() {
 			}
 		}
 	}
+	//merge close
+	for (auto & lines : cellLines) {
+		int prevIndex = lines.back();
+		auto prevIt = --lines.end();
+		for (auto it = lines.begin(); it != lines.end();) {
+			int index = *it;
+			ofVec2f v1 = linesMesh.getVertex(prevIndex);
+			ofVec2f v2 = linesMesh.getVertex(index);
+			if (v1.distanceSquared(v2) < 64) {
+				it = lines.erase(it);
+				v1 = (v1 + v2)*0.5;
+				linesMesh.setVertex(index, v1);
+				linesMesh.setVertex(prevIndex, v1);
+				if (index > prevIndex) {
+					*prevIt = index;
+					prevIndex = index;
+				}
+			} else {
+				prevIndex = index;
+				prevIt = it;
+				it++;
+			}
+			
+		}
+	}
+
+	nodeAssignment.resize(linesMesh.getNumVertices());
+	assignNodesGreedy();
 }
+
+void ofApp::assignNodesGreedy() {
+	vector<set<int> > neighbors(linesMesh.getNumVertices());
+	list<int> processStack;
+
+	for (auto & lines : cellLines) {
+		int prevIndex = lines.back();
+		for (auto index : lines) {
+			neighbors[index].emplace(prevIndex);
+			neighbors[prevIndex].emplace(index);
+			prevIndex = index;
+		}
+	}
+	for (auto & a : nodeAssignment) a = -1;
+	for (int i = 0; i < neighbors.size(); ++i) {
+		if (neighbors[i].size() > 0) {
+			processStack.push_back(i);
+			nodeAssignment[i] = 0;
+			break;
+		}
+	}
+	while (processStack.size() > 0) {
+		int currIndex = processStack.front();
+		processStack.pop_front();
+		set<int> & neighs = neighbors[currIndex];
+		int a = (nodeAssignment[currIndex] + 1) % 2;
+		for (auto n : neighs) {
+			if (nodeAssignment[n] == -1) {
+				nodeAssignment[n] = a;
+				processStack.push_back(n);
+			}
+		}
+	}
+}
+
 void ofApp::offsetCells() {
 	cellOffsets.clear();
 	for (int i = 0; i < pts.size(); ++i) {
