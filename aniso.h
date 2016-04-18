@@ -8,6 +8,7 @@
 
 typedef AnisoPoint2f MyPoint;
 
+extern cv::Mat imgCol;
 extern cv::Mat imgDist;
 extern cv::Mat imgGradX, imgGradY;
 extern vector<AnisoPoint2f> nearPts;
@@ -166,7 +167,7 @@ inline AnisoPoint2f getAnisoPtImg(const ofVec3f &pt) {
 	ofVec2f dir(dx, dy);
 dir.normalize();
 dist = pow(dist, 1);//falloff
-float size = ofLerp(minDensity, maxDensity, dist);
+float size = ofLerp(minDensity, maxDensity, pow(dist, sizeFallOffExp));
 
 Matrix2f jac;
 
@@ -180,6 +181,41 @@ jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, s
 //jac << size, 0.0, 0.0, size;
 jac = jac.inverse().eval();
 return AnisoPoint2f(pos, jac);
+}
+
+
+inline AnisoPoint2f getAnisoPtMulticolor(const ofVec3f &pt) {
+	cv::Vec3b col = imgCol.at<cv::Vec3b>((int)pt.y, (int)pt.x);
+	if (col[0] > 100) {
+		return getAnisoPtImg(pt);
+	}
+	else {
+		return getAnisoPtSet(pt);
+		/*
+		Vector2f pos;
+		pos << pt.x, pt.y;
+		ofVec2f dir = pt - ofVec2f(imgCol.cols*0.5, imgCol.rows*0.5);
+		float dist = ofClamp(dir.length()/90.0,0,1);
+		dir.normalize();
+		dir.rotate(35);
+		dist = pow(dist, 1);//falloff
+		float size = 14;// ofLerp((maxDensity + minDensity)*.5, minDensity, dist);
+
+		Matrix2f jac;
+
+
+		float anisotropy = 1.35;// ofLerp(1, .5, pow(1 - dist, anisoLerpRamp));
+		jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
+
+
+		//jac << size*anisotrophyStr*dir.y, size / anisotrophyStr*dir.x, -size*anisotrophyStr*dir.x, size / anisotrophyStr*dir.y;
+		//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
+		//jac << size, 0.0, 0.0, size;
+		jac = jac.inverse().eval();
+		return AnisoPoint2f(pos, jac);
+		*/
+	}
+	
 }
 
 inline AnisoPoint2f getAnisoPtSin(const ofVec3f &pt) {

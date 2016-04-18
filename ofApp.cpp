@@ -23,7 +23,7 @@ float anisoLerpRamp = .5;
 float minThick = 5.0f; //.05 inches rubber
 float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "complex2.png";
+String imageName = "circle.png";
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
@@ -40,12 +40,11 @@ vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
 bool doEtchOffset = false;
-Mat imgDist;
+Mat imgDist, imgCol;
 Mat imgGradX, imgGradY;
 
 //--------------------------------------------------------------
 void ofApp::setup(){
-	
 	setupImage(imageName);	
 	
 	//important thing
@@ -54,7 +53,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtMulticolor;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -102,17 +101,37 @@ void ofApp::setupImage(string filename) {
 	ofSetWindowShape(w+300, h);
 
 	Mat initImg(baseImage.getHeight(), baseImage.getWidth(), CV_8UC1);
+	copy(baseImage, imgCol);
+	cout << "channels " << imgCol.channels() << endl;
 	cvtColor(toCv(baseImage), initImg, COLOR_BGR2GRAY);
 	//toCv(baseImage).copyTo(initImg);
 	//imgGradX = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
 	//imgGradY = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
+	
 	distanceTransform(initImg, imgDist, CV_DIST_L2, CV_DIST_MASK_PRECISE);
+	Mat temp = imgDist;
+	Mat temp2;
+	//Laplacian(temp, temp2, CV_32F);
+	//imgDist += temp2;
+	//imgDist = max(imgDist, 0);
 	normalize(imgDist, imgDist);
+	
+	
 	Mat tempImg1 = imgDist;
 	Mat tempImg2 = imgDist;
 	Scharr(tempImg1, imgGradX, CV_32F, 1, 0);
 	Scharr(tempImg2, imgGradY, CV_32F, 0, 1);
-	toOf(imgDist, distImage);
+	//temp = imgDist*255;
+	copy(imgDist, distImage);
+	for (int i = 0; i < distImage.getWidth(); ++i) {
+		for (int j = 0; j < distImage.getHeight(); ++j) {
+			//cout << i << " , " << j << " , " << imgDist.at<float>(j, i) << endl;
+			distImage.setColor(i, j, ofColor(imgDist.at<float>(j, i) * 255));
+			//distImage.setColor(i, j, ofColor(ofRandom(255)));
+		}
+	}
+	distImage.update();
+	
 }
 
 void ofApp::setupGui() {
@@ -165,7 +184,7 @@ void ofApp::initPts() {
 			//density = ofLerp(maxDensity, minDensity, ofClamp(x/200.0,0,1));
 			if (addPt(pt)) {
 				fail = 0;
-				cout << pts.size() << endl;
+				//cout << pts.size() << endl;
 			}
 			else {
 				fail++;
@@ -255,6 +274,8 @@ void ofApp::draw(){
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
 	//drawPtEllipses();
 	//distImage.draw(0,0);
+	ofSetColor(255);
+	//distImage.draw(0, 0);
 	ofSetColor(0);
 	ofNoFill();
 	//linesMesh.draw();
@@ -333,9 +354,9 @@ void ofApp::getDistances() {
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
-				//if (imgDist.at<float>(y, x) == 0) {
-				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10+.25);// IndexDist(pts.size(), 0);
-				//}
+				if (imgDist.at<float>(y, x) == 0) {
+				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10);// IndexDist(pts.size(), 0);
+				}
 			}
 		}
 	}
@@ -386,7 +407,7 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0) {
-					distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
+					//distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
 				}
 			}
 		}
@@ -610,7 +631,7 @@ void ofApp::dualContour() {
 				}
 			}
 			if (!found) {
-				cout << "incomplete cell" << endl;
+				//cout << "incomplete cell" << endl;
 				break;
 			}
 		}
@@ -639,7 +660,8 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 	co.ArcTolerance = 1;
 	Path P;
 	Paths offsetP;
-	float offset = ofClamp(.16 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
+	//float offset = ofClamp(.16 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
+	float offset = ofClamp(.2 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
 
 	if (doSmooth) {
 		ofVec2f center;
