@@ -110,18 +110,18 @@ void ofApp::setupGui() {
 	gui->onButtonEvent(this, &ofApp::buttonEvent);
 
 	ofxDatGuiSlider * slider = gui->addSlider("min density", 2, 200, minDensity);
-	slider->bind(&minDensity,2,200);
+	slider->bind(minDensity,2,200);
 	slider = gui->addSlider("max density", 2, 300, maxDensity);
-	slider->bind(&maxDensity,2,300);
+	slider->bind(maxDensity,2,300);
 	slider = gui->addSlider("anisotropy", .5, 2, anisotrophyStr);
-	slider->bind(&anisotrophyStr,0.5,2);
+	slider->bind(anisotrophyStr,0.5,2);
 	slider = gui->addSlider("min thickness", 2, 20, minThick);
-	slider->bind(&minThick,2,40);
+	slider->bind(minThick,2,40);
 	slider = gui->addSlider("max thickness", 2, 40, maxThick);
-	slider->bind(&maxThick,2,40);
+	slider->bind(maxThick,2,40);
 
 	slider = gui->addSlider("fillet percent", .25, .99);
-	slider->bind(&filletPercent, .25, .99);
+	slider->bind(filletPercent, .25, .99);
 
 	gui->addToggle("smoothing", doSmooth);
 	ofxDatGuiDropdown * functionDd = gui->addDropdown("functions", functionNames);
@@ -312,9 +312,9 @@ void ofApp::getDistances() {
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
-				if (imgDist.at<float>(y, x) == 0) {
-					distances[(w*y + x) * 3] = IndexDist(pts.size(), 0);
-				}
+				//if (imgDist.at<float>(y, x) == 0) {
+				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10+.25);// IndexDist(pts.size(), 0);
+				//}
 			}
 		}
 	}
