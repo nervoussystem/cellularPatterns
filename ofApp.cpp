@@ -9,20 +9,21 @@ float w = 750; //750
 float h = 1050; //1000
 
 float maxDensity(50);//200 90 //150 810
-float minDensity(14);//18 //30  200
+float minDensity(10);//18 //30  200
 
-float maxDensity2(80);
-float minDensity2(12);
+float maxDensity2(16);
+float minDensity2(3);
 float anisotrophyStr(1.4f);
 
 float etchOffset = 2.85;
-bool doSmooth = true;
-float filletPercent = .8;
+bool doSmooth = false;
+float filletPercent = .5;
 float sizeFallOffExp = .75;
+float anisoLerpRamp = .5;
+float minThick = 5.0f; //.05 inches rubber
+float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-float minThick = 9.9f; //.05 inches rubber
-float maxThick = minThick*2.0f; //.1 inches rubber
-String imageName = "circle.png";
+String imageName = "complex2.png";
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
@@ -30,6 +31,9 @@ bool isOptimizing = false;
 bool record = false;
 bool hasMask = true; //if you are using an image to crop the pattern
 
+vector<ofVec2f> patternPts;
+vector<float> patternPtRads;
+float drawOffsetX = 300;
 vector<AnisoPoint2f> nearPts;
 AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
@@ -51,6 +55,7 @@ void ofApp::setup(){
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
 	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
+	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
 	anisoFunctions.push_back(&getAnisoPtNoise);
@@ -58,6 +63,8 @@ void ofApp::setup(){
 	anisoFunctions.push_back(&getAnisoPtImg);
 	anisoFunctions.push_back(&getAnisoPtSin);
 	anisoFunctions.push_back(&getAnisoPtBamboo);
+	anisoFunctions.push_back(&getAnisoSide);
+	functionNames.push_back("border");
 	functionNames.push_back("pt");
 	functionNames.push_back("ptSet");
 	functionNames.push_back("noise");
@@ -65,6 +72,7 @@ void ofApp::setup(){
 	functionNames.push_back("img");
 	functionNames.push_back("sin");
 	functionNames.push_back("bamboo");
+	functionNames.push_back("side");
 	//minDensity = minDensity2;
 	//maxDensity = maxDensity2;
 	setupGui();
@@ -72,10 +80,12 @@ void ofApp::setup(){
 	reset();
 }
 
+
+
 void ofApp::reset() {
 	binW = floor(w / max(minDensity,maxDensity)) + 1;
 	binH = floor(h / max(minDensity,maxDensity)) + 1;
-
+	
 	linesMesh.setMode(OF_PRIMITIVE_LINES);
 	bins.resize(binW*binH);
 	for (int i = 0; i < bins.size(); ++i)bins.clear();
@@ -109,16 +119,24 @@ void ofApp::setupGui() {
 	gui = new ofxDatGui();
 	gui->onButtonEvent(this, &ofApp::buttonEvent);
 
-	ofxDatGuiSlider * slider = gui->addSlider("min density", 2, 200, minDensity);
-	slider->bind(minDensity,2,200);
-	slider = gui->addSlider("max density", 2, 300, maxDensity);
-	slider->bind(maxDensity,2,300);
+
+	ofxDatGuiSlider * slider = gui->addSlider("min density", 2, 600, minDensity);
+	slider->bind(minDensity,2,600);
+	slider = gui->addSlider("max density", 2, 600, maxDensity);
+	slider->bind(maxDensity,2,600);
 	slider = gui->addSlider("anisotropy", .5, 2, anisotrophyStr);
 	slider->bind(anisotrophyStr,0.5,2);
-	slider = gui->addSlider("min thickness", 2, 20, minThick);
-	slider->bind(minThick,2,40);
-	slider = gui->addSlider("max thickness", 2, 40, maxThick);
-	slider->bind(maxThick,2,40);
+	slider = gui->addSlider("min thickness", 0, 20, minThick);
+	slider->bind(minThick,0,40);
+	slider = gui->addSlider("max thickness", 0, 40, maxThick);
+	slider->bind(maxThick,0,40);
+
+	slider = gui->addSlider("anisotropy lerp ramp", 0,1, anisoLerpRamp);
+	slider->bind(anisoLerpRamp, 0, 5);
+
+	slider = gui->addSlider("size lerp ramp", 0, 1, sizeFallOffExp);
+	slider->bind(sizeFallOffExp, 0, 5);
+
 
 	slider = gui->addSlider("fillet percent", .25, .99);
 	slider->bind(filletPercent, .25, .99);
@@ -128,6 +146,9 @@ void ofApp::setupGui() {
 	functionDd->onDropdownEvent(this, &ofApp::setFunction);
 	gui->addButton("reset");
 	gui->addButton("optimize");
+	gui->addButton("setupStage2");
+	gui->addButton("savePDF");
+	gui->addButton("clear points");
 }
 
 void ofApp::initPts() {
@@ -140,7 +161,7 @@ void ofApp::initPts() {
 	while(fail < 5000) {
 		pt = ofVec3f(ofRandom(w), ofRandom(h));
 		//check mask
-		if (!hasMask || imgDist.at<float>((int)pt.y, (int)pt.x) > 0) {
+		if (!hasMask || imgDist.at<float>(min((int)pt.y, imgDist.rows-1), min((int)pt.x,imgDist.cols-1)) > 0) {
 			//density = ofLerp(maxDensity, minDensity, ofClamp(x/200.0,0,1));
 			if (addPt(pt)) {
 				fail = 0;
@@ -216,7 +237,7 @@ void ofApp::setupStage2() {
 	getAnisoPoint = &getAnisoPointPts;
 	minDensity  = minDensity2;
 	maxDensity  = maxDensity2;
-	anisotrophyStr = 1.4;// 1.0f / 1.4f;
+	anisotrophyStr = .6;// 1.0f / 1.4f;
 	reset();
 }
 
@@ -230,7 +251,7 @@ void ofApp::draw(){
 	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << ofGetTimestampString() << ".pdf";
 
 	ofPushMatrix();
-	ofTranslate(300, 0);
+	ofTranslate(drawOffsetX, 0);
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
 	//drawPtEllipses();
 	//distImage.draw(0,0);
@@ -579,11 +600,13 @@ void ofApp::dualContour() {
 						cell.push_front(*it2);
 					}
 					lines.erase(it);
+					break;
 				}
 				else if (it->back() == cell.front()) {
 					found = true;
 					cell.insert(cell.begin(), it->begin(), --it->end());
 					lines.erase(it);
+					break;
 				}
 			}
 			if (!found) {
@@ -597,6 +620,10 @@ void ofApp::dualContour() {
 
 }
 
+void ofApp::savePDF() {
+	record = true;
+
+}
 void ofApp::offsetCells() {
 	cellOffsets.clear();
 	for (int i = 0; i < pts.size(); ++i) {
@@ -612,7 +639,7 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 	co.ArcTolerance = 1;
 	Path P;
 	Paths offsetP;
-	float offset = ofClamp(.2 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
+	float offset = ofClamp(.16 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
 
 	if (doSmooth) {
 		ofVec2f center;
@@ -742,9 +769,6 @@ void ofApp::keyPressed(int key){
 		cout << "optimize" << endl;
 		optimize();
 		break;
-	case 's':
-		setupStage2();
-		break;
 	case 'r':
 		record = true;
 		break;
@@ -775,6 +799,20 @@ void ofApp::mouseDragged(int x, int y, int button){
 
 //--------------------------------------------------------------
 void ofApp::mousePressed(int x, int y, int button){
+	if (x > drawOffsetX) {
+		if (patternPts.size() > patternPtRads.size()) {
+			//need to use this point to set radius
+			ofVec2f myPt = ofVec2f(x - drawOffsetX, y);
+			float myNewRad = myPt.distance(patternPts.back());
+			patternPtRads.push_back(myNewRad);
+			cout << myNewRad;
+		}
+		else {
+			patternPts.push_back(ofVec2f(x - drawOffsetX, y));
+		}
+		
+		
+	}
 
 }
 
@@ -818,7 +856,17 @@ void ofApp::buttonEvent(ofxDatGuiButtonEvent e) {
 	} else if (e.target->is("optimize")) {
 		optimize();
 	}
+	else if (e.target->is("savePDF")) {
+		savePDF();
+	}
+	else if (e.target->is("setupStage2")) {
+		setupStage2();
+	}
 	else if (e.target->is("smoothing")) {
 		doSmooth = e.target->getEnabled();
+	}
+	else if (e.target->is("clear points")) {
+		patternPts.clear();
+		reset();
 	}
 }

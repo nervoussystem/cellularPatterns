@@ -30,7 +30,7 @@ public:
 		//get random pt
 		ofVec3f initPt(ofRandom(w), ofRandom(h), 0);
 		//mask 
-		if (hasMask && imgDist.at<float>((int)initPt.y, (int)initPt.x) <= 0) return false;
+		if (hasMask && imgDist.at<float>(min((int)initPt.y, imgDist.rows-1), min((int)initPt.x,imgDist.cols-1)) <= 0) return false;
 		MyPoint aniInitPt = getAnisoPoint(initPt);
 		Matrix2f inverse = (*aniInitPt.jacobian).inverse();
 		Vector2f spherePt(ofRandom(-1, 1), ofRandom(-1, 1));
