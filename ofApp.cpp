@@ -271,6 +271,7 @@ void ofApp::draw(){
 
 	ofPushMatrix();
 	ofTranslate(drawOffsetX, 0);
+	ofScale(ofGetWindowHeight()*1.0/imgDist.rows, ofGetWindowHeight() *1.0 / imgDist.rows);
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
 	//drawPtEllipses();
 	//distImage.draw(0,0);
