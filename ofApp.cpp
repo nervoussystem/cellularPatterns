@@ -20,10 +20,17 @@ bool doSmooth = false;
 float filletPercent = .5;
 float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
-float minThick = 5.0f; //.05 inches rubber
-float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
+//for metal jewelry
+float minThick = 9.9f;
+float maxThick = minThick * 2.0f;
+//for rubber 
+//float minThick = 5.0f; //.05 inches rubber
+//float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "complex2.png";
+String imageName = "weirdEarrings.png";
+//"circle25.4mm.png";
+//"circle12.7mm.png";
+//"circle40mm.png";
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
@@ -333,9 +340,9 @@ void ofApp::getDistances() {
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
-				//if (imgDist.at<float>(y, x) == 0) {
-				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10+.25);// IndexDist(pts.size(), 0);
-				//}
+				if (imgDist.at<float>(y, x) == 0) {
+				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10);// IndexDist(pts.size(), 0);
+				}
 			}
 		}
 	}
@@ -867,6 +874,7 @@ void ofApp::buttonEvent(ofxDatGuiButtonEvent e) {
 	}
 	else if (e.target->is("clear points")) {
 		patternPts.clear();
+		patternPtRads.clear();
 		reset();
 	}
 }
