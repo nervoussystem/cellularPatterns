@@ -11,8 +11,8 @@ float h = 1050; //1000
 float maxDensity(50);//200 90 //150 810
 float minDensity(10);//18 //30  200
 
-float maxDensity2(16);
-float minDensity2(3);
+float maxDensity2(20);
+float minDensity2(5);
 float anisotrophyStr(1.4f);
 
 float etchOffset = 2.85;
@@ -43,6 +43,11 @@ bool doEtchOffset = false;
 Mat imgDist, imgCol;
 Mat imgGradX, imgGradY;
 
+ofColor c2(220, 220, 220);
+ofColor c1(255, 102, 153); //pink c1(65,130,242);//
+ofColor c3(229, 255, 102);
+
+vector<ofColor> colors;
 //--------------------------------------------------------------
 void ofApp::setup(){
 	setupImage(imageName);	
@@ -59,6 +64,7 @@ void ofApp::setup(){
 	anisoFunctions.push_back(&getAnisoPtSet);
 	anisoFunctions.push_back(&getAnisoPtNoise);
 	anisoFunctions.push_back(&getAnisoPointPts);
+	anisoFunctions.push_back(&getAnisoPointPts2);
 	anisoFunctions.push_back(&getAnisoPtImg);
 	anisoFunctions.push_back(&getAnisoPtSin);
 	anisoFunctions.push_back(&getAnisoPtBamboo);
@@ -68,6 +74,7 @@ void ofApp::setup(){
 	functionNames.push_back("ptSet");
 	functionNames.push_back("noise");
 	functionNames.push_back("secondStage");
+	functionNames.push_back("secondStageB");
 	functionNames.push_back("img");
 	functionNames.push_back("sin");
 	functionNames.push_back("bamboo");
@@ -88,6 +95,8 @@ void ofApp::reset() {
 	linesMesh.setMode(OF_PRIMITIVE_LINES);
 	bins.resize(binW*binH);
 	for (int i = 0; i < bins.size(); ++i)bins.clear();
+	
+	pts.clear();
 	initPts();
 	getDistances();
 	dualContour();
@@ -171,7 +180,7 @@ void ofApp::setupGui() {
 }
 
 void ofApp::initPts() {
-	pts.clear();
+	
 	int fail = 0;
 	ofVec3f pt;
 	int totalTries = 0;
@@ -217,8 +226,8 @@ bool ofApp::addPt(ofVec3f & pt) {
 				MyPoint pt2 = pts[ind];
 				float d = metric.distance_square(*aniPt.pt, *pt2.pt, *aniPt.jacobian);
 				if (d < 1) return false;
-				//d = metric.distance_square(pt2, aniPt);
-				//if (d < 1) return false;
+				d = metric.distance_square(pt2, aniPt);
+				if (d < 1) return false;
 			}
 		}
 	}
@@ -253,16 +262,28 @@ void ofApp::update(){
 
 void ofApp::setupStage2() {
 	nearPts = pts;
+	colors.resize(nearPts.size());
+	for (int i = 0; i < nearPts.size(); ++i) {
+		ofColor c = c1.getLerped(c3, nearPts[i].t);
+		float h = c.getHue();
+		c.setHsb(h, .73 * 255, 255);
+		colors[i] = c;
+
+	}
 	getAnisoPoint = &getAnisoPointPts;
 	minDensity  = minDensity2;
 	maxDensity  = maxDensity2;
-	anisotrophyStr = .6;// 1.0f / 1.4f;
+	anisotrophyStr = .7;// 1.0f / 1.4f;
 	reset();
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-	
+	doDraw();
+}
+
+void ofApp::doDraw() {
+
 	ofBackground(255);
 
 
@@ -283,33 +304,53 @@ void ofApp::draw(){
 	//if (record) {
 	/*
 	for (int i = 0; i < linesMesh.getNumIndices();i+=2) {
-		ofVec2f pt = (linesMesh.getVertex(linesMesh.getIndex(i))+ linesMesh.getVertex(linesMesh.getIndex(i + 1)))*.5;
-		int cellIndex1 = distances[(w*int(pt.y) + int(pt.x)) * 3].index;
-		int cellIndex2 = distances[(w*int(pt.y) + int(pt.x)) * 3 + 1].index;
-		int numCell = 0;
-		float weight = 0;
-		if (cellIndex1 < pts.size()) {
-			AnisoPoint2f cellPt = pts[cellIndex1];
-			weight += 1 / sqrt(cellPt.jacobian->determinant());
-			numCell++;
-		}
-		if (cellIndex2 < pts.size()) {
-			AnisoPoint2f cellPt = pts[cellIndex2];
-			weight += 1 / sqrt(cellPt.jacobian->determinant());
-			numCell++;
-		}
-		//stroke
-		//get 2 closest cell pts and use their area  (determinant of their jacobian of the size)
-		weight *= .35 / numCell;
+	ofVec2f pt = (linesMesh.getVertex(linesMesh.getIndex(i))+ linesMesh.getVertex(linesMesh.getIndex(i + 1)))*.5;
+	int cellIndex1 = distances[(w*int(pt.y) + int(pt.x)) * 3].index;
+	int cellIndex2 = distances[(w*int(pt.y) + int(pt.x)) * 3 + 1].index;
+	int numCell = 0;
+	float weight = 0;
+	if (cellIndex1 < pts.size()) {
+	AnisoPoint2f cellPt = pts[cellIndex1];
+	weight += 1 / sqrt(cellPt.jacobian->determinant());
+	numCell++;
+	}
+	if (cellIndex2 < pts.size()) {
+	AnisoPoint2f cellPt = pts[cellIndex2];
+	weight += 1 / sqrt(cellPt.jacobian->determinant());
+	numCell++;
+	}
+	//stroke
+	//get 2 closest cell pts and use their area  (determinant of their jacobian of the size)
+	weight *= .35 / numCell;
 
-		//clamp in between min and max stroke weight
-		weight = ofClamp(weight, minThick, maxThick);
+	//clamp in between min and max stroke weight
+	weight = ofClamp(weight, minThick, maxThick);
 
-		ofSetLineWidth(weight);
-		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
-		
+	ofSetLineWidth(weight);
+	ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
+
 	}*/
-	for (auto & cell : cellOffsets) {
+	ofFill();
+	for (int i = 0; i < cellOffsets.size() - 1; ++i) {
+		auto & cell = cellOffsets[i];
+		AnisoPoint2f aPt = pts[i];
+
+		if (nearPts.size() > 0) {
+			float minD = 9e9;
+			int closestI = 0;
+			for (int i = 0; i < nearPts.size(); ++i) {
+				AnisoPoint2f & nPt = nearPts[i];
+				float d = nPt.distance_squared(aPt);
+				if (d < minD) {
+
+					minD = d;
+					closestI = i;
+				}
+			}
+			ofSetColor(colors[closestI].getLerped(c2, ofClamp(aPt.t - ofNoise(aPt[0], aPt[1])*.2,0,1)));
+		}
+		else {
+		}
 		ofBeginShape();
 		for (auto & pt : cell) {
 			ofVertex(pt);

@@ -99,14 +99,17 @@ inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	dir.normalize();
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
 	//float size = ofLerp(minDensity, maxDensity, ofClamp(pt.distance(ofVec3f(375, 525))/500,0,1));
-	float size = ofLerp(minDensity, maxDensity, ofNoise(pt.x*noiseScale, pt.y*noiseScale));
+	float t = ofNoise(pt.x*noiseScale, pt.y*noiseScale);
+	float size = ofLerp(minDensity, maxDensity, t);
 
 	Matrix2f jac;
 	jac << size*anisotrophyStr*dir.y, size/ anisotrophyStr*dir.x, -size*anisotrophyStr*dir.x, size/anisotrophyStr*dir.y;
 	//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
 	//jac << size, 0.0, 0.0, size;
 	jac = jac.inverse().eval();
-	return AnisoPoint2f(pos, jac);
+	AnisoPoint2f aPt(pos, jac);
+	aPt.t = t;
+	return aPt;
 }
 //stage 2
 inline AnisoPoint2f getAnisoPointPts(const ofVec3f &pt) {
@@ -135,6 +138,7 @@ inline AnisoPoint2f getAnisoPointPts(const ofVec3f &pt) {
 	//if (minD2 > borderD) minD2 = borderD;
 	float totalD = minD + minD2;
 	float t = ofClamp(minD / totalD * 2, 0, 1);
+
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
 	float maxD = sqrt(1.0/closest.jacobian->determinant());
 	maxD *= .3;
@@ -146,6 +150,55 @@ inline AnisoPoint2f getAnisoPointPts(const ofVec3f &pt) {
 	Vector2f dir = (*closest.jacobian).transpose()*(*closest.jacobian)*(pos - *closest.pt);
 	dir.normalize();
 	jac << size*dir[1]* anisoness, size*dir[0]/ anisoness, -size*dir[0]* anisoness, size*dir[1]/ anisoness;
+	//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
+	//jac << size, 0.0, 0.0, size;
+	jac = jac.inverse().eval();
+	AnisoPoint2f apt(pos, jac);
+	apt.t = t;
+	return apt;
+}
+
+
+
+
+inline AnisoPoint2f getAnisoPointPts2(const ofVec3f &pt) {
+	//get nearest pt
+	float minD = 9e9, minD2 = 9e9;
+	AnisoPoint2f closest, closest2;
+	Vector2f pos;
+	pos << pt.x, pt.y;
+	for (int i = 0; i < nearPts.size(); ++i) {
+		AnisoPoint2f & nPt = nearPts[i];
+		float d = nPt.distance_squared(pos);
+		if (d < minD) {
+			closest2 = closest;
+			minD2 = minD;
+			minD = d;
+			closest = nPt;
+		}
+		else if (d < minD2) {
+			minD2 = d;
+			closest2 = nPt;
+		}
+	}
+	minD = sqrt(minD);
+	minD2 = sqrt(minD2);
+	//float borderD = minD+imgDist.at<float>((int)pt.y, (int)pt.x);
+	//if (minD2 > borderD) minD2 = borderD;
+	float totalD = minD + minD2;
+	float t = ofClamp(minD / totalD * 2, 0, 1);
+	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
+	float maxD = sqrt(1.0 / closest.jacobian->determinant());
+	maxD *= .3;
+	minD = min(maxD, minDensity);
+	maxD = min(maxD, maxDensity);
+	float size = ofLerp(maxD, minD, pow(t, sizeFallOffExp));
+	float anisotrophy = ofLerp(.7, 1.5, pt.x/imgDist.cols);
+	float anisoness = ofLerp(1, anisotrophy, pow(t, anisoLerpRamp));
+	Matrix2f jac;
+	Vector2f dir = (*closest.jacobian).transpose()*(*closest.jacobian)*(pos - *closest.pt);
+	dir.normalize();
+	jac << size*dir[1] * anisoness, size*dir[0] / anisoness, -size*dir[0] * anisoness, size*dir[1] / anisoness;
 	//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
 	//jac << size, 0.0, 0.0, size;
 	jac = jac.inverse().eval();
@@ -165,22 +218,24 @@ inline AnisoPoint2f getAnisoPtImg(const ofVec3f &pt) {
 	float dx = imgGradX.at<float>((int)pt.y, (int)pt.x);
 	float dy = imgGradY.at<float>((int)pt.y, (int)pt.x);
 	ofVec2f dir(dx, dy);
-dir.normalize();
-dist = pow(dist, 1);//falloff
-float size = ofLerp(minDensity, maxDensity, pow(dist, sizeFallOffExp));
+	dir.normalize();
+	dist = pow(dist, 1);//falloff
+	float size = ofLerp(minDensity, maxDensity, pow(dist, sizeFallOffExp));
 
-Matrix2f jac;
-
-
-float anisotropy = ofLerp(1, anisotrophyStr, pow(1-dist, anisoLerpRamp));
-jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
+	Matrix2f jac;
 
 
-//jac << size*anisotrophyStr*dir.y, size / anisotrophyStr*dir.x, -size*anisotrophyStr*dir.x, size / anisotrophyStr*dir.y;
-//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
-//jac << size, 0.0, 0.0, size;
-jac = jac.inverse().eval();
-return AnisoPoint2f(pos, jac);
+	float anisotropy = ofLerp(1, anisotrophyStr, pow(1-dist, anisoLerpRamp));
+	jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
+
+
+	//jac << size*anisotrophyStr*dir.y, size / anisotrophyStr*dir.x, -size*anisotrophyStr*dir.x, size / anisotrophyStr*dir.y;
+	//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
+	//jac << size, 0.0, 0.0, size;
+	jac = jac.inverse().eval();
+	AnisoPoint2f aPt(pos, jac);
+	aPt.t = dist;
+	return aPt;
 }
 
 
