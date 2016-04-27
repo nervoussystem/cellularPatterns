@@ -23,11 +23,13 @@ float anisoLerpRamp = .5;
 //for metal jewelry
 float minThick = 9.9f;
 float maxThick = minThick * 2.0f;
+
+bool cleanEdge = false;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "weirdEarrings.png";
+String imageName = "complex4.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -340,7 +342,7 @@ void ofApp::getDistances() {
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
-				if (imgDist.at<float>(y, x) == 0) {
+				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
 				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10);// IndexDist(pts.size(), 0);
 				}
 			}
