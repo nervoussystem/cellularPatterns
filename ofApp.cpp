@@ -11,8 +11,8 @@ float h = 1050; //1000
 float maxDensity(50);//200 90 //150 810
 float minDensity(10);//18 //30  200
 
-float maxDensity2(20);
-float minDensity2(5);
+float maxDensity2(30);
+float minDensity2(7);
 float anisotrophyStr(1.4f);
 
 float etchOffset = 2.85;
@@ -20,10 +20,12 @@ bool doSmooth = false;
 float filletPercent = .5;
 float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
-float minThick = 5.0f; //.05 inches rubber
-float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
+float minThick = 2.0f; //.05 inches rubber
+float maxThick = 3.0f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "circle.png";
+String imageName = "bigCircle.png";
+String colorGradientName = "gradient_blueGreen.png";
+ofImage colorGradient;
 
 int binW, binH, binD, binWH;
 vector< vector<int> > bins;
@@ -43,9 +45,13 @@ bool doEtchOffset = false;
 Mat imgDist, imgCol;
 Mat imgGradX, imgGradY;
 
-ofColor c2(220, 220, 220);
-ofColor c1(255, 102, 153); //pink c1(65,130,242);//
-ofColor c3(229, 255, 102);
+
+ofColor c1(0,86,70); //jade green
+ofColor c3(0, 86, 70);//jade green
+//pink c1(65,130,242);//
+ofColor c2(198, 210, 236);//light blue
+ofColor c4(79, 154, 196);//blue
+
 
 vector<ofColor> colors;
 //--------------------------------------------------------------
@@ -82,7 +88,7 @@ void ofApp::setup(){
 	//minDensity = minDensity2;
 	//maxDensity = maxDensity2;
 	setupGui();
-
+	colorGradient.loadImage(colorGradientName);
 	reset();
 }
 
@@ -265,15 +271,17 @@ void ofApp::setupStage2() {
 	colors.resize(nearPts.size());
 	for (int i = 0; i < nearPts.size(); ++i) {
 		ofColor c = c1.getLerped(c3, nearPts[i].t);
-		float h = c.getHue();
-		c.setHsb(h, .73 * 255, 255);
+		//float h = c.getHue();
+		//c.setHsb(h, .73 * 255, 255);
 		colors[i] = c;
 
 	}
 	getAnisoPoint = &getAnisoPointPts;
 	minDensity  = minDensity2;
 	maxDensity  = maxDensity2;
-	anisotrophyStr = .7;// 1.0f / 1.4f;
+	minThick = .1;
+	maxThick = 1;
+	anisotrophyStr = .75;// 1.0f / 1.4f;
 	reset();
 }
 
@@ -347,7 +355,12 @@ void ofApp::doDraw() {
 					closestI = i;
 				}
 			}
-			ofSetColor(colors[closestI].getLerped(c2, ofClamp(aPt.t - ofNoise(aPt[0], aPt[1])*.2,0,1)));
+			//set color of cell
+			float imgW = colorGradient.getWidth();
+			float myX = ofLerp(0, imgW, ofClamp(aPt.t - ofNoise(aPt[0], aPt[1])*.2, 0, 1));
+			ofColor myColor = colorGradient.getColor(myX, 1);
+			ofSetColor(myColor);
+			//ofSetColor(colors[closestI].getLerped(c2, ofClamp(aPt.t - ofNoise(aPt[0], aPt[1])*.2,0,1)));
 		}
 		else {
 		}
