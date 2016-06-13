@@ -18,6 +18,7 @@ extern float h;
 extern AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 extern float anisoLerpRamp;
 static float noiseScale = .002;// .001;
+extern float rando;// .001;
 static float noiseScaleDir = .002;// .002;
 
 extern vector<ofVec2f> patternPts;
@@ -189,7 +190,7 @@ inline AnisoPoint2f getAnisoPtSin(const ofVec3f &pt) {
 	ofVec2f dir(1,0);
 	dir.normalize();
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
-	float t = pow((sin((pt.x+ofNoise(pt.x*noiseScale,pt.y*noiseScale)*100)*0.045) + 1)*0.5, 2.7);
+	float t = pow((sin((pt.x+ofNoise(pt.x*noiseScale,pt.y*noiseScale, rando)*151)*0.048) + 1)*0.5, sizeFallOffExp);
 	float size = ofLerp(maxDensity, minDensity, t);
 
 	Matrix2f jac;

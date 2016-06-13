@@ -16,20 +16,21 @@ float minDensity2(3);
 float anisotrophyStr(1.4f);
 
 float etchOffset = 2.85;
-bool doSmooth = false;
+bool doSmooth = true;
 float filletPercent = .5;
 float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
+float rando = .5;
 //for metal jewelry
 float minThick = 9.9f;
 float maxThick = minThick * 2.0f;
-
+bool paused = false;
 bool cleanEdge = false;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "complex4.png";
+String imageName = "bodice_front_center.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -54,7 +55,7 @@ Mat imgGradX, imgGradY;
 
 //--------------------------------------------------------------
 void ofApp::setup(){
-	
+	ofSeedRandom(ofGetSystemTimeMicros());
 	setupImage(imageName);	
 	
 	//important thing
@@ -90,8 +91,8 @@ void ofApp::setup(){
 }
 
 
-
 void ofApp::reset() {
+	
 	binW = floor(w / max(minDensity,maxDensity)) + 1;
 	binH = floor(h / max(minDensity,maxDensity)) + 1;
 	
@@ -158,6 +159,7 @@ void ofApp::setupGui() {
 	gui->addButton("setupStage2");
 	gui->addButton("savePDF");
 	gui->addButton("clear points");
+	gui->addButton("randomize");
 }
 
 void ofApp::initPts() {
@@ -220,7 +222,8 @@ bool ofApp::addPt(ofVec3f & pt) {
 }
 
 //--------------------------------------------------------------
-void ofApp::update(){
+void ofApp::update() {
+	if (!paused) {
 	if (isOptimizing) {
 		if (!optThread.isThreadRunning()) {
 			isOptimizing = false;
@@ -240,6 +243,7 @@ void ofApp::update(){
 		}
 	}
 }
+}
 
 void ofApp::setupStage2() {
 	nearPts = pts;
@@ -257,7 +261,7 @@ void ofApp::draw(){
 
 
 	std::ostringstream ss;
-	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << ofGetTimestampString() << ".pdf";
+	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << "_thick_" << minThick << "-" << maxThick << "_" << ofGetTimestampString() << ".pdf";
 
 	ofPushMatrix();
 	ofTranslate(drawOffsetX, 0);
@@ -343,7 +347,7 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
-				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*10);// IndexDist(pts.size(), 0);
+				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*15);// IndexDist(pts.size(), 0);
 				}
 			}
 		}
@@ -781,6 +785,8 @@ void ofApp::keyPressed(int key){
 	case 'r':
 		record = true;
 		break;
+	case 'p':
+		paused = !paused;
 	case 'a':
 		anisotrophyStr = 1.0 / anisotrophyStr;
 		break;
@@ -879,4 +885,9 @@ void ofApp::buttonEvent(ofxDatGuiButtonEvent e) {
 		patternPtRads.clear();
 		reset();
 	}
+	else if (e.target->is("randomize")) {
+		rando = ofRandom(20);
+		reset();
+	}
+	
 }
