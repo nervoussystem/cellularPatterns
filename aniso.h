@@ -167,14 +167,11 @@ inline AnisoPoint2f getAnisoPtImg(const ofVec3f &pt) {
 	ofVec2f dir(dx, dy);
 dir.normalize();
 dist = pow(dist, 1);//falloff
-float size = ofLerp(minDensity, maxDensity, dist);
+float size = ofLerp(minDensity, maxDensity, pow(dist, sizeFallOffExp));
 
 Matrix2f jac;
-
-
-float anisotropy = ofLerp(1, anisotrophyStr, pow(1-dist, anisoLerpRamp));
+float anisotropy = ofLerp(1, anisotrophyStr, pow(1 - dist, anisoLerpRamp));
 jac << size*anisotropy*dir.y, size / anisotropy*dir.x, -size*anisotropy*dir.x, size / anisotropy*dir.y;
-
 
 //jac << size*anisotrophyStr*dir.y, size / anisotrophyStr*dir.x, -size*anisotrophyStr*dir.x, size / anisotrophyStr*dir.y;
 //jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;

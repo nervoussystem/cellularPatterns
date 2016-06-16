@@ -30,7 +30,7 @@ bool cleanEdge = false;
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "bodice_front_center.png";
+String imageName = "bracelet2.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
