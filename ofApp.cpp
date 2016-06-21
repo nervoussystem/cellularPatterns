@@ -42,7 +42,7 @@ bool drawFill = true;
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "bodice_topBack_only.png";
+String imageName = "circle.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -528,6 +528,7 @@ void ofApp::dualContour() {
 	//NOT PROPERLY DOING BOTTOM AND RIGHT EDGE
 	vector<vector<int> > neighbors;
 	vector<set<int> > ptCells;
+	vector<list<pair<int, int> > > cellEdges(pts.size()+1);
 	for (int y = 0; y < h - 2; ++y) {
 		int wy = w*y;
 		for (int x = 0; x < w - 2; ++x) {
@@ -579,6 +580,8 @@ void ofApp::dualContour() {
 				ptIndices[wy + x] = currIndex;
 				if (x > 0 && conLeft) {
 					int nIndex = ptIndices[wy + x - 1];
+					cellEdges[p1.index].push_back(make_pair(nIndex, currIndex));
+					cellEdges[p3.index].push_back(make_pair(currIndex, nIndex));
 					linesMesh.addIndex(currIndex);
 					linesMesh.addIndex(nIndex);
 
@@ -587,6 +590,8 @@ void ofApp::dualContour() {
 				}
 				if (y > 0 && conUp) {
 					int nIndex = ptIndices[wy + x - w];
+					cellEdges[p1.index].push_back(make_pair(currIndex, nIndex));
+					cellEdges[p2.index].push_back(make_pair(nIndex, currIndex));
 					linesMesh.addIndex(currIndex);
 					linesMesh.addIndex(nIndex);
 					neighbors[currIndex].push_back(nIndex);
@@ -597,6 +602,30 @@ void ofApp::dualContour() {
 		}
 	}
 
+	cellLines.clear();
+	for (auto & edges : cellEdges) {
+		list<int> cell;
+		if (edges.size() > 2) {
+			auto e = edges.back();
+			edges.pop_back();
+			cell.push_back(e.first);
+			while (edges.size() > 0) {
+				bool nextFound = false;
+				for (auto it = edges.begin(); it != edges.end(); ++it) {
+					if (it->first == e.second) {
+						e = *it;
+						cell.push_back(e.first);
+						edges.erase(it);
+						nextFound = true;
+						break;
+					}
+				}
+				if (!nextFound) break;
+			}
+		}
+		cellLines.push_back(cell);
+	}
+	/*
 	int numPts = linesMesh.getNumVertices();
 	vector<bool> processed(numPts, false);
 	//get boundaries
@@ -722,7 +751,7 @@ void ofApp::dualContour() {
 		}
 		cellLines.push_back(cell);
 	}
-
+	*/
 
 }
 
