@@ -62,6 +62,7 @@ vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
 bool doEtchOffset = false;
+float maxImgDist = 0;
 Mat imgDist, imgMask;
 Mat imgGradX, imgGradY;
 
@@ -133,7 +134,10 @@ void ofApp::setupImage() {
 	//imgGradX = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
 	//imgGradY = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
 	distanceTransform(initImg, imgDist, CV_DIST_L2, CV_DIST_MASK_PRECISE);
-	//normalize(imgDist, imgDist);
+	double maxDist, minDist;
+	minMaxLoc(imgDist,&minDist,&maxDist);
+	maxImgDist = maxDist;
+	normalize(imgDist, imgDist);
 	Mat tempImg1 = imgDist;
 	Mat tempImg2 = imgDist;
 	Scharr(tempImg1, imgGradX, CV_32F, 1, 0);
@@ -477,7 +481,7 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
-					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)/(maxDensity+minDensity)*4);// IndexDist(pts.size(), 0);
+					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*4);// IndexDist(pts.size(), 0);
 				}
 			}
 		}
@@ -500,10 +504,11 @@ void ofApp::getDistances() {
 
 ofVec2f getVoronoiIntersection(ofVec2f p1, ofVec2f p2, float side1A, float side1B, float side2A, float side2B) {
 	//float eLen = p1.distance(p2);
+	float x = (side1A - side2A) / (side1A - side1B + side2B - side2A);
 	if ((side1A - side1B + side2B - side2A) == 0) {
 		cout << "WGFTESIDF " << side1A << " " << side1B << " " << side2A << endl;
+		x = .5;
 	}
-	float x = (side1A - side2A) / (side1A - side1B + side2B - side2A);
 	x = ofClamp(x, 0, 1);
 	return ofVec2f(p1.x + (p2.x - p1.x)*x, p1.y + (p2.y - p1.y)*x);
 }
@@ -875,10 +880,10 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			IntPoint iPt(v.x * scaling, v.y * scaling);
 			P.push_back(iPt);
 		}
-		Paths simplerP;
-		SimplifyPolygon(P, simplerP);
-		co.AddPaths(simplerP, jtRound, etClosedPolygon);
-		
+		//Paths simplerP;
+		//SimplifyPolygon(P, simplerP);
+		//co.AddPaths(simplerP, jtRound, etClosedPolygon);
+		co.AddPath(P, jtRound, etClosedPolygon);
 		co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
 		if (offsetP.size() > 0) {
@@ -962,7 +967,7 @@ void ofApp::keyPressed(int key){
 		offsetCells();
 		break;
 	case 's':
-		
+		cleanEdge = true;
 		tempTex.allocate(baseImage.getPixels());
 		tempTex.loadScreenData(drawOffsetX, 0, baseImage.getWidth(), baseImage.getHeight());
 		tempTex.readToPixels(baseImage.getPixels());
