@@ -44,8 +44,8 @@ class ofApp : public ofBaseApp{
 		ccvt::MetricAniso2d metric;
 		ofVboMesh linesMesh;
 		vector<list<int> > polylines;
-		vector<list<int> > cellLines;
-		vector<vector<ofVec3f> > cellOffsets;
+		vector<vector<list<int> > > cellLines;
+		vector<ofPoly > cellOffsets;
 
 		vector<ofVec3f> offsetCell(list<int> & crv, AnisoPoint2f & center);
 		vector<ofVec3f> offsetCell(list<int> & crv, float amt);

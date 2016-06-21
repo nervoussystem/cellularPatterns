@@ -604,12 +604,14 @@ void ofApp::dualContour() {
 
 	cellLines.clear();
 	for (auto & edges : cellEdges) {
+		vector<list<int> > cells;
 		list<int> cell;
-		if (edges.size() > 2) {
+		while (edges.size() > 2) {
 			auto e = edges.back();
 			edges.pop_back();
+			cell.clear();
 			cell.push_back(e.first);
-			while (edges.size() > 0) {
+			while (edges.size() > 2) {
 				bool nextFound = false;
 				for (auto it = edges.begin(); it != edges.end(); ++it) {
 					if (it->first == e.second) {
@@ -622,8 +624,9 @@ void ofApp::dualContour() {
 				}
 				if (!nextFound) break;
 			}
+			cells.push_back(cell);
 		}
-		cellLines.push_back(cell);
+		cellLines.push_back(cells);
 	}
 	/*
 	int numPts = linesMesh.getNumVertices();
@@ -762,11 +765,15 @@ void ofApp::savePDF() {
 void ofApp::offsetCells() {
 	cellOffsets.clear();
 	for (int i = 0; i < pts.size(); ++i) {
-		auto & line = cellLines[i];
-		if(line.size() > 3)	cellOffsets.push_back(offsetCell(line, pts[i]));
-		else cellOffsets.push_back(vector<ofVec3f>());
+		auto & cells = cellLines[i];
+		for (auto & line : cells) {
+			if (line.size() > 3)	cellOffsets.push_back(offsetCell(line, pts[i]));
+		}
 	}
-	cellOffsets.push_back(offsetCell(cellLines.back(), -(minThick + maxThick)*0.25));
+	auto & cells = cellLines.back();
+	for (auto & line : cells) {
+		cellOffsets.push_back(offsetCell(line, -(minThick + maxThick)*0.25));
+	}
 }
 
 vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
