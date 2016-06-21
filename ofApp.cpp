@@ -65,6 +65,7 @@ bool doEtchOffset = false;
 Mat imgDist, imgMask;
 Mat imgGradX, imgGradY;
 
+int boundaryIndex = 0;
 //--------------------------------------------------------------
 void ofApp::setup(){
 	ofSeedRandom(ofGetSystemTimeMicros());
@@ -77,7 +78,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtSet;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -132,7 +133,7 @@ void ofApp::setupImage() {
 	//imgGradX = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
 	//imgGradY = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
 	distanceTransform(initImg, imgDist, CV_DIST_L2, CV_DIST_MASK_PRECISE);
-	normalize(imgDist, imgDist);
+	//normalize(imgDist, imgDist);
 	Mat tempImg1 = imgDist;
 	Mat tempImg2 = imgDist;
 	Scharr(tempImg1, imgGradX, CV_32F, 1, 0);
@@ -316,7 +317,7 @@ void ofApp::draw(){
 	int endIndex = cellOffsets.size();
 	if (drawFill) {
 		ofFill();
-		endIndex--;
+		endIndex = boundaryIndex;
 	}
 	else {
 		ofNoFill();
@@ -476,7 +477,7 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
-					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*15);// IndexDist(pts.size(), 0);
+					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)/(maxDensity+minDensity)*4);// IndexDist(pts.size(), 0);
 				}
 			}
 		}
@@ -770,6 +771,7 @@ void ofApp::offsetCells() {
 			if (line.size() > 3)	cellOffsets.push_back(offsetCell(line, pts[i]));
 		}
 	}
+	boundaryIndex = cellOffsets.size();
 	auto & cells = cellLines.back();
 	for (auto & line : cells) {
 		cellOffsets.push_back(offsetCell(line, -(minThick + maxThick)*0.25));
