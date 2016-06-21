@@ -7,6 +7,7 @@
 #include "ofxCv.h"
 #include "ofxDatGui.h"
 
+typedef vector<ofVec3f> ofPoly;
 
 struct IndexDist {
 	unsigned int index;
