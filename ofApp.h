@@ -33,7 +33,7 @@ class ofApp : public ofBaseApp{
 		ofxDatGui * gui;
 		void setupGui();
 
-		void setupImage(string filename);
+		void setupImage();
 		void reset();
 
 		vector<AnisoPoint2f> pts;
@@ -53,6 +53,7 @@ class ofApp : public ofBaseApp{
 		ofImage distImage;
 
 		void getDistances();
+		void getDistance(int i);
 		void dualContour();
 
 		void offsetCells();

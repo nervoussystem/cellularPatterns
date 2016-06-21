@@ -1,6 +1,17 @@
 #include "ofApp.h"
 #include "constants.h"
 #include "clipper.hpp"
+
+
+#include<CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include<CGAL/Polygon_2.h>
+#include<CGAL/create_straight_skeleton_2.h>
+
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+typedef K::Point_2                   Point_2;
+typedef CGAL::Polygon_2<K>           Polygon_2;
+typedef CGAL::Straight_skeleton_2<K> Ss;
+
 using namespace ClipperLib;
 using namespace ofxCv;
 using namespace cv;
@@ -16,7 +27,7 @@ float minDensity2(3);
 float anisotrophyStr(1.4f);
 
 float etchOffset = 2.85;
-bool doSmooth = true;
+bool doSmooth = false;
 float filletPercent = .5;
 float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
@@ -26,11 +37,12 @@ float minThick = 9.9f;
 float maxThick = minThick * 2.0f;
 bool paused = false;
 bool cleanEdge = false;
+bool drawFill = true;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "bracelet2.png";
+String imageName = "bodice_topBack_only.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -50,13 +62,14 @@ vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
 bool doEtchOffset = false;
-Mat imgDist;
+Mat imgDist, imgMask;
 Mat imgGradX, imgGradY;
 
 //--------------------------------------------------------------
 void ofApp::setup(){
 	ofSeedRandom(ofGetSystemTimeMicros());
-	setupImage(imageName);	
+	baseImage.load(imageName);
+	setupImage();	
 	
 	//important thing
 	//anisotropy function - give it a pt in space and it returns an anisotropic pt
@@ -98,21 +111,23 @@ void ofApp::reset() {
 	
 	linesMesh.setMode(OF_PRIMITIVE_LINES);
 	bins.resize(binW*binH);
-	for (int i = 0; i < bins.size(); ++i)bins.clear();
+	for (int i = 0; i < bins.size(); ++i)bins[i].clear();
 	initPts();
 	getDistances();
 	dualContour();
 	offsetCells();
 }
 
-void ofApp::setupImage(string filename) {
-	baseImage.load(filename);
+void ofApp::setupImage() {
+	
 	w = baseImage.getWidth();
 	h = baseImage.getHeight();
 	ofSetWindowShape(w+300, h);
 
 	Mat initImg(baseImage.getHeight(), baseImage.getWidth(), CV_8UC1);
 	cvtColor(toCv(baseImage), initImg, COLOR_BGR2GRAY);
+	threshold(initImg, 120);
+	dilate(initImg, imgMask, getStructuringElement(MORPH_CROSS, Size(7, 7), cv::Point(3, 3)));
 	//toCv(baseImage).copyTo(initImg);
 	//imgGradX = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
 	//imgGradY = Mat(baseImage.getHeight(), baseImage.getWidth(), CV_32FC1);
@@ -178,10 +193,8 @@ void ofApp::initPts() {
 				fail = 0;
 				cout << pts.size() << endl;
 			}
-			else {
-				fail++;
-			}
 		}
+		fail++;
 	}
 }
 
@@ -257,8 +270,8 @@ void ofApp::setupStage2() {
 //--------------------------------------------------------------
 void ofApp::draw(){
 	
-	ofBackground(255);
-
+	ofBackground(0);
+	ofSetColor(255);
 
 	std::ostringstream ss;
 	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << "_thick_" << minThick << "-" << maxThick << "_" << ofGetTimestampString() << ".pdf";
@@ -268,8 +281,8 @@ void ofApp::draw(){
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
 	//drawPtEllipses();
 	//distImage.draw(0,0);
-	ofSetColor(0);
-	ofNoFill();
+	//baseImage.draw(0,0);
+	ofSetColor(255);
 	//linesMesh.draw();
 	//if (record) {
 	/*
@@ -300,12 +313,23 @@ void ofApp::draw(){
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
 		
 	}*/
-	for (auto & cell : cellOffsets) {
-		ofBeginShape();
-		for (auto & pt : cell) {
-			ofVertex(pt);
+	int endIndex = cellOffsets.size();
+	if (drawFill) {
+		ofFill();
+		endIndex--;
+	}
+	else {
+		ofNoFill();
+	}
+	for (int i = 0; i < endIndex;++i) {
+		auto & cell = cellOffsets[i];
+		if (cell.size() > 3) {
+			ofBeginShape();
+			for (auto & pt : cell) {
+				ofVertex(pt);
+			}
+			ofEndShape(true);
 		}
-		ofEndShape(true);
 	}
 	if (record) {
 		record = false;
@@ -340,6 +364,111 @@ void ofApp::drawPtEllipses() {
 	}
 }
 
+void ofApp::getDistance(int i) {
+	Vector2f tempPt;
+	AnisoPoint2f & pt = pts[i];
+	vector<bool> visited(w*h, false);
+	int xi = (int)pt[0];
+	int yi = (int)pt[1];
+	Matrix2f transform = pt.jacobian->inverse();
+	Vector2f vec(0, 1);
+	vec = transform*vec;
+	Vector2f vec2(1, 0);
+	vec2 = transform*vec2;
+	vec(0) = max(abs(vec(0)), abs(vec2(0)));
+	vec(1) = max(abs(vec(1)), abs(vec2(1)));
+	list<int> indexStack;
+	int minX = max(0, (int)(pt[0] - vec(0) * 2.5));
+	int maxX = min((int)w - 1, (int)(pt[0] + vec(0) * 2.5));
+	int minY = max(0, (int)(pt[1] - vec(1) * 2.5));
+	int maxY = min((int)h - 1, (int)(pt[1] + vec(1) * 2.5));
+
+	indexStack.push_back(yi*w + xi);
+	visited[yi*w + xi] = true;
+	while (!indexStack.empty()) {
+		int index = indexStack.front();
+		indexStack.pop_front();
+
+		int x = index%(int)w;
+		int y = index / (int)w;
+		int index3 = index * 3;
+		tempPt[0] = x;
+		tempPt[1] = y;
+		float dist = metric.distance_square(*pt.pt, tempPt, *pt.jacobian);
+		if (dist < distances[index3].dist) {
+			distances[index3 + 2] = distances[index3 + 1];
+			distances[index3 + 1] = distances[index3];
+			distances[index3].index = i;
+			distances[index3].dist = dist;
+		}
+		else if (dist < distances[index3 + 1].dist) {
+			distances[index3 + 2] = distances[index3 + 1];
+			distances[index3 + 1].index = i;
+			distances[index3 + 1].dist = dist;
+		}
+		else if (dist < distances[index3 + 2].dist) {
+			distances[index3 + 2].index = i;
+			distances[index3 + 2].dist = dist;
+		}
+		if (imgMask.at<float>(y, x) >0) {
+			if (x + 1 <= maxX) {
+				index = y*w + x + 1;
+				if (!visited[index]) {
+					visited[index] = true;
+					indexStack.push_back(index);
+				}
+			}
+			if (x - 1 >= minX) {
+				index = y*w + x - 1;
+				if (!visited[index]) {
+					visited[index] = true;
+					indexStack.push_back(index);
+				}
+			}
+			if (y + 1 <= maxY) {
+				index = (y + 1)*w + x;
+				if (!visited[index]) {
+					visited[index] = true;
+					indexStack.push_back(index);
+				}
+			}
+			if (y - 1 >= minY) {
+				index = (y - 1)*w + x;
+				if (!visited[index]) {
+					visited[index] = true;
+					indexStack.push_back(index);
+				}
+			}
+		}
+	}
+	for (int x = minX; x <= maxX; ++x) {
+		for (int y = minY; y <= maxY; ++y) {
+			unsigned int index = (w*y + x) * 3;
+			tempPt[0] = x;
+			tempPt[1] = y;
+			float dist = metric.distance_square(*pt.pt, tempPt, *pt.jacobian);
+			if (dist < distances[index].dist) {
+				distances[index + 2] = distances[index + 1];
+				distances[index + 1] = distances[index];
+				distances[index].index = i;
+				distances[index].dist = dist;
+			}
+			else if (dist < distances[index + 1].dist) {
+				distances[index + 2] = distances[index + 1];
+				distances[index + 1].index = i;
+				distances[index + 1].dist = dist;
+			}
+			else if (dist < distances[index + 2].dist) {
+				distances[index + 2].index = i;
+				distances[index + 2].dist = dist;
+			}
+
+
+
+		}
+	}
+}
+
 void ofApp::getDistances() {
 	distances.resize(w*h * 3);
 	for (int i = 0; i < distances.size(); ++i) distances[i] = IndexDist(pts.size(), 9e9);
@@ -347,59 +476,21 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
-				distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*15);// IndexDist(pts.size(), 0);
+					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*15);// IndexDist(pts.size(), 0);
 				}
 			}
 		}
 	}
 	Vector2f tempPt;
 	for (int i = 0; i < pts.size();++i) {
-		AnisoPoint2f & pt = pts[i];
-		ofPushMatrix();
-
-		Matrix2f transform = pt.jacobian->inverse();
-		Vector2f vec(0, 1);
-		vec = transform*vec;
-		Vector2f vec2(1, 0);
-		vec2 = transform*vec2;
-		vec(0) = max(abs(vec(0)), abs(vec2(0)));
-		vec(1) = max(abs(vec(1)), abs(vec2(1)));
-		int minX = max(0, (int) (pt[0] - vec(0)*2));
-		int maxX = min((int) w-1, (int)(pt[0] + vec(0)*2));
-		int minY = max(0, (int)(pt[1] - vec(1)*2));
-		int maxY = min((int)h - 1, (int)(pt[1] + vec(1)*2));
-		for (int x = minX; x <= maxX; ++x) {
-			for (int y = minY; y <= maxY; ++y) {
-				unsigned int index = (w*y + x) * 3;
-				tempPt[0] = x;
-				tempPt[1] = y;
-				float dist = metric.distance_square(*pt.pt, tempPt, *pt.jacobian);
-				if (dist < distances[index].dist) {
-					distances[index + 2] = distances[index + 1];
-					distances[index + 1] = distances[index];
-					distances[index].index = i;
-					distances[index].dist = dist;
-				}
-				else if (dist < distances[index + 1].dist) {
-					distances[index + 2] = distances[index + 1];
-					distances[index + 1].index = i;
-					distances[index + 1].dist = dist;
-				}
-				else if (dist < distances[index + 2].dist) {
-					distances[index + 2].index = i;
-					distances[index + 2].dist = dist;
-				}
-
-
-				
-			}
-		}
+		getDistance(i);
 	}
 	if (hasMask) {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0) {
-					distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
+					if(distances[(w*y + x) * 3 + 1].index != pts.size())
+						distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
 				}
 			}
 		}
@@ -408,7 +499,9 @@ void ofApp::getDistances() {
 
 ofVec2f getVoronoiIntersection(ofVec2f p1, ofVec2f p2, float side1A, float side1B, float side2A, float side2B) {
 	//float eLen = p1.distance(p2);
-
+	if ((side1A - side1B + side2B - side2A) == 0) {
+		cout << "WGFTESIDF " << side1A << " " << side1B << " " << side2A << endl;
+	}
 	float x = (side1A - side2A) / (side1A - side1B + side2B - side2A);
 	x = ofClamp(x, 0, 1);
 	return ofVec2f(p1.x + (p2.x - p1.x)*x, p1.y + (p2.y - p1.y)*x);
@@ -641,13 +734,14 @@ void ofApp::offsetCells() {
 	cellOffsets.clear();
 	for (int i = 0; i < pts.size(); ++i) {
 		auto & line = cellLines[i];
-		cellOffsets.push_back(offsetCell(line, pts[i]));
+		if(line.size() > 3)	cellOffsets.push_back(offsetCell(line, pts[i]));
+		else cellOffsets.push_back(vector<ofVec3f>());
 	}
 	cellOffsets.push_back(offsetCell(cellLines.back(), -(minThick + maxThick)*0.25));
 }
 
 vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
-	float scaling = 10000;
+	float scaling = 1000;
 	ClipperOffset co;
 	co.ArcTolerance = 1;
 	Path P;
@@ -655,36 +749,63 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 	float offset = ofClamp(.16 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
 
 	if (doSmooth) {
-		ofVec2f center;
+		
 		for (auto index : crv) {
 			ofVec3f v = linesMesh.getVertex(index);
-			Vector2f p(v.x, v.y);
+			IntPoint iPt(v.x * scaling, v.y * scaling);
+			P.push_back(iPt);
+		}
+		co.AddPath(P, jtRound, etClosedPolygon);
+		co.Execute(offsetP, -offset*scaling);
+		if(offsetP.size() == 0) return vector<ofVec3f>();
+		P.clear();
+		ofVec2f center;
+		for (auto & v : offsetP[0]) {
+			//ofVec3f v = linesMesh.getVertex(index);
+			Vector2f p(v.X, v.Y);
 			p = (*pt.jacobian)*p;
-			IntPoint iPt(p.coeff(0) * scaling, p.coeff(1) * scaling);
+			IntPoint iPt(p.coeff(0), p.coeff(1));
 			P.push_back(iPt);
 			center += ofVec2f(iPt.X, iPt.Y);
 		}
 		center /= crv.size();
 		Paths simplerP;
 		SimplifyPolygon(P, simplerP);
+		if (simplerP.size() > 1) cout << "multiple contours in offset" << endl;
+
+		
+		co.Clear();
 		co.AddPaths(simplerP, jtRound, etClosedPolygon);
 		float radius = 9e20;
 
-		//estimate radius
-		for (auto & iPt : P) {
-			radius = min(radius, (iPt.X - center.x)*(iPt.X - center.x) + (iPt.Y - center.y)*(iPt.Y - center.y));
+		//get exact radius from straight skeleton
+		Polygon_2 poly;
+		for (auto & pt : simplerP[0]) {
+			poly.push_back(Point_2(pt.X, pt.Y));
 		}
-		radius = sqrt(radius);
+		boost::shared_ptr<Ss> iss = CGAL::create_interior_straight_skeleton_2(poly.vertices_begin(), poly.vertices_end());
+		radius = 0;
+		for (Ss::Vertex_handle vh = iss->vertices_begin(); vh != iss->vertices_end(); vh++) {
+			radius = max(radius,(float) vh->time());
+		}
 
-		co.Execute(offsetP, -radius);
-		int tries = 0;
-		while (offsetP.size() == 0 && tries < 50) {
-			radius *= .95;
-			co.Execute(offsetP, -radius);
-			tries++;
-		}
+		//estimate radius
+		//for (auto & iPt : P) {
+		//	radius = min(radius, (iPt.X - center.x)*(iPt.X - center.x) + (iPt.Y - center.y)*(iPt.Y - center.y));
+		//}
+		//radius = sqrt(radius);
+		//co.Execute(offsetP, -radius);
+		//int tries = 0;
+		//while (offsetP.size() == 0 && tries < 50) {
+		//	radius *= .95;
+		//	co.Execute(offsetP, -radius);
+		//	tries++;
+		//}
+		//cout << tries << endl;
 		radius *= filletPercent;
 		co.Execute(offsetP, -radius);
+		//radius = min(radius,(radius - offset*scaling)*filletPercent + offset*scaling);
+		
 		//co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
 		if (offsetP.size() > 0) {
@@ -692,16 +813,20 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			co.Clear();
 			co.AddPaths(offsetP, jtRound, etClosedPolygon);
 			co.Execute(offsetP, radius);
-			
-			Matrix2f inverse = pt.jacobian->inverse();
+			Path longestP;
+			int pLen = 0;
 			for (auto & oP : offsetP) {
-				//Path & oP = offsetP[0];
-				for (int i = 0; i < oP.size(); i++) {
-					//ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
-					Vector2f anisoPt(oP[i].X / scaling, oP[i].Y / scaling);
-					anisoPt = inverse*anisoPt;
-					offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
+				if (oP.size() > pLen) {
+					pLen = oP.size();
+					longestP = oP;
 				}
+			}
+			Matrix2f inverse = pt.jacobian->inverse();
+			for (int i = 0; i < longestP.size(); i++) {
+				//ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
+				Vector2f anisoPt(longestP[i].X / scaling, longestP[i].Y / scaling);
+				anisoPt = inverse*anisoPt;
+				offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
 			}
 		}
 		return offsetPts;
@@ -712,7 +837,10 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			IntPoint iPt(v.x * scaling, v.y * scaling);
 			P.push_back(iPt);
 		}
-		co.AddPath(P, jtRound, etClosedPolygon);
+		Paths simplerP;
+		SimplifyPolygon(P, simplerP);
+		co.AddPaths(simplerP, jtRound, etClosedPolygon);
+		
 		co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
 		if (offsetP.size() > 0) {
@@ -777,6 +905,7 @@ void ofApp::optimize() {
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
+	ofTexture tempTex;
 	switch (key) {
 	case 'o':
 		cout << "optimize" << endl;
@@ -793,6 +922,18 @@ void ofApp::keyPressed(int key){
 	case 'e':
 		doEtchOffset = !doEtchOffset;
 		offsetCells();
+		break;
+	case 's':
+		
+		tempTex.allocate(baseImage.getPixels());
+		tempTex.loadScreenData(drawOffsetX, 0, baseImage.getWidth(), baseImage.getHeight());
+		tempTex.readToPixels(baseImage.getPixels());
+		baseImage.mirror(true, false);
+		baseImage.save("twesdf.png");
+		setupImage();
+		break;
+	case 'f':
+		drawFill = !drawFill;
 		break;
 	}
 }
@@ -858,7 +999,8 @@ void ofApp::gotMessage(ofMessage msg){
 
 //--------------------------------------------------------------
 void ofApp::dragEvent(ofDragInfo dragInfo){ 
-	setupImage(dragInfo.files[0]);
+	baseImage.load(dragInfo.files[0]);
+	setupImage();
 }
 
 void ofApp::setFunction(ofxDatGuiDropdownEvent e) {

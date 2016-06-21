@@ -50,7 +50,6 @@ inline AnisoPoint2f getAnisoPtSet(const ofVec3f &pt) {
 	pos << pt.x, pt.y;
 	//ofVec2f centerPt(375, 525);
 
-	
 
 	ofVec2f grad;
 	int closest = 0;
