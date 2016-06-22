@@ -36,13 +36,13 @@ float rando = .5;
 float minThick = 9.9f;
 float maxThick = minThick * 2.0f;
 bool paused = false;
-bool cleanEdge = false;
+bool cleanEdge = true;
 bool drawFill = true;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 
-String imageName = "circle.png";
+String imageName = "bodice_top_only2.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -481,7 +481,9 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
-					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*4);// IndexDist(pts.size(), 0);
+					
+					float weirdEdgeMultiplier = 4; //the smaller it is it more frilly the edge is
+					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*weirdEdgeMultiplier);// IndexDist(pts.size(), 0);
 				}
 			}
 		}
@@ -812,18 +814,15 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			center += ofVec2f(iPt.X, iPt.Y);
 		}
 		center /= crv.size();
-		Paths simplerP;
-		SimplifyPolygon(P, simplerP);
-		if (simplerP.size() > 1) cout << "multiple contours in offset" << endl;
-
+		CleanPolygon(P);
 		
 		co.Clear();
-		co.AddPaths(simplerP, jtRound, etClosedPolygon);
+		co.AddPath(P, jtRound, etClosedPolygon);
 		float radius = 9e20;
 
 		//get exact radius from straight skeleton
 		Polygon_2 poly;
-		for (auto & pt : simplerP[0]) {
+		for (auto & pt : P) {
 			poly.push_back(Point_2(pt.X, pt.Y));
 		}
 		boost::shared_ptr<Ss> iss = CGAL::create_interior_straight_skeleton_2(poly.vertices_begin(), poly.vertices_end());
@@ -854,8 +853,10 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		if (offsetP.size() > 0) {
 			//visual offset for etching
 			co.Clear();
+			CleanPolygons(offsetP);
 			co.AddPaths(offsetP, jtRound, etClosedPolygon);
 			co.Execute(offsetP, radius);
+			CleanPolygons(offsetP);
 			Path longestP;
 			int pLen = 0;
 			for (auto & oP : offsetP) {
