@@ -24,7 +24,7 @@ float minDensity(10);//18 //30  200
 
 float maxDensity2(16);
 float minDensity2(3);
-float anisotrophyStr(1.4f);
+float anisotrophyStr(.7f);
 
 float etchOffset = 2.85;
 bool doSmooth = false;
@@ -32,15 +32,19 @@ float filletPercent = .5;
 float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
 float rando = .5;
-//for metal jewelry
-float minThick = 9.9f;
-float maxThick = minThick * 2.0f;
+
 bool paused = false;
-bool cleanEdge = true;
+bool cleanEdge = false;
 bool drawFill = true;
+//for metal jewelry
+//float minThick = 9.9f;
+//float maxThick = minThick * 2.0f;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
+//for fabric
+float minThick = 6.0f;
+float maxThick = 10.0f;
 
 String imageName = "bodice_top_only2.png";
 //"circle25.4mm.png";
@@ -172,6 +176,7 @@ void ofApp::setupGui() {
 	slider->bind(filletPercent, .25, .99);
 
 	gui->addToggle("smoothing", doSmooth);
+	gui->addToggle("cleanEdge", cleanEdge);
 	ofxDatGuiDropdown * functionDd = gui->addDropdown("functions", functionNames);
 	functionDd->onDropdownEvent(this, &ofApp::setFunction);
 	gui->addButton("reset");
@@ -1065,6 +1070,14 @@ void ofApp::buttonEvent(ofxDatGuiButtonEvent e) {
 	}
 	else if (e.target->is("smoothing")) {
 		doSmooth = e.target->getEnabled();
+		offsetCells();
+	}
+	else if (e.target->is("cleanEdge")) {
+		cleanEdge = e.target->getEnabled();
+		getDistances();
+		dualContour();
+		offsetCells();
+		
 	}
 	else if (e.target->is("clear points")) {
 		patternPts.clear();
