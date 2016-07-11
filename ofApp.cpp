@@ -876,10 +876,22 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 				}
 			}
 			Matrix2f inverse = pt.jacobian->inverse();
+			if (doEtchOffset) {
+				co.Clear();
+				for (auto & lPt : longestP) {
+					Vector2f anisoPt(lPt.X, lPt.Y);
+					anisoPt = inverse*anisoPt;
+					lPt.X = anisoPt[0];
+					lPt.Y = anisoPt[1];
+				}
+				co.AddPath(longestP, jtRound, etClosedPolygon);
+				co.Execute(offsetP, etchOffset*scaling);
+				longestP = offsetP[0];
+			}
 			for (int i = 0; i < longestP.size(); i++) {
 				//ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
 				Vector2f anisoPt(longestP[i].X / scaling, longestP[i].Y / scaling);
-				anisoPt = inverse*anisoPt;
+				if(!doEtchOffset)anisoPt = inverse*anisoPt;
 				offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
 			}
 		}
@@ -891,10 +903,11 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			IntPoint iPt(v.x * scaling, v.y * scaling);
 			P.push_back(iPt);
 		}
-		Paths simplerP;
-		SimplifyPolygon(P, simplerP);
-		CleanPolygons(simplerP);
-		P = simplerP[0];
+		CleanPolygon(P);
+		//Paths simplerP;
+		//SimplifyPolygon(P, simplerP);
+		//CleanPolygons(simplerP);
+		//P = simplerP[0];
 		//CleanPolygon(P);
 		//Polygon_2 poly;
 		//for (auto & pt : P) {
@@ -916,12 +929,26 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
 		if (offsetP.size() > 0) {
+			CleanPolygons(offsetP);
 			if (doEtchOffset) {
 				co.Clear();
 				co.AddPaths(offsetP, jtRound, etClosedPolygon);
 				co.Execute(offsetP, etchOffset*scaling);
 			}
-			Path & oP = offsetP[0];
+			else {
+				co.Clear();
+				co.AddPaths(offsetP, jtRound, etClosedPolygon);
+				co.Execute(offsetP, 1);
+			}
+			Path longestP;
+			int pLen = 0;
+			for (auto & oP : offsetP) {
+				if (oP.size() > pLen) {
+					pLen = oP.size();
+					longestP = oP;
+				}
+			}
+			Path & oP = longestP;
 			for (int i = 0; i < oP.size(); i++) {
 				ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
 				offsetPts.push_back(pt3D);
@@ -949,11 +976,14 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, float amt) {
 	vector<ofVec3f> offsetPts;
 	if (offsetP.size() > 0) {
 		//visual offset for etching
+		CleanPolygons(offsetP);
+
 		if (doEtchOffset) {
 			co.Clear();
 			co.AddPaths(offsetP, jtRound, etClosedPolygon);
 			co.Execute(offsetP, -etchOffset*scaling);
 		}
+
 		Path & oP = offsetP[0];
 		for (int i = 0; i < oP.size(); i++) {
 			ofVec3f pt3D(oP[i].X / scaling, oP[i].Y / scaling);
