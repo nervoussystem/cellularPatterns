@@ -165,7 +165,7 @@ void ofApp::setupGui() {
 	slider->bind(minThick,0,40);
 	slider = gui->addSlider("max thickness", 0, 60, maxThick);
 	slider->bind(maxThick,0,60);
-	slider = gui->addSlider("offset", 0.01, .99, offsetPercent);
+	slider = gui->addSlider("offset", 0.1, .5, offsetPercent);
 	slider->bind(offsetPercent);
 
 	slider = gui->addSlider("anisotropy lerp ramp", 0,1, anisoLerpRamp);
