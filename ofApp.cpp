@@ -45,6 +45,7 @@ bool drawFill = true;
 //for fabric
 float minThick = 6.0f;
 float maxThick = 10.0f;
+float offsetPercent = 0.2f;
 
 String imageName = "bodice_top_only2.png";
 //"circle25.4mm.png";
@@ -162,8 +163,10 @@ void ofApp::setupGui() {
 	slider->bind(anisotrophyStr,0.5,2);
 	slider = gui->addSlider("min thickness", 0, 20, minThick);
 	slider->bind(minThick,0,40);
-	slider = gui->addSlider("max thickness", 0, 40, maxThick);
-	slider->bind(maxThick,0,40);
+	slider = gui->addSlider("max thickness", 0, 60, maxThick);
+	slider->bind(maxThick,0,60);
+	slider = gui->addSlider("offset", 0.01, .99, offsetPercent);
+	slider->bind(offsetPercent);
 
 	slider = gui->addSlider("anisotropy lerp ramp", 0,1, anisoLerpRamp);
 	slider->bind(anisoLerpRamp, 0, 5);
@@ -796,7 +799,7 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 	co.ArcTolerance = 1;
 	Path P;
 	Paths offsetP;
-	float offset = ofClamp(.16 / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
+	float offset = ofClamp(offsetPercent / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
 
 	if (doSmooth) {
 		
@@ -833,7 +836,9 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		boost::shared_ptr<Ss> iss = CGAL::create_interior_straight_skeleton_2(poly.vertices_begin(), poly.vertices_end());
 		radius = 0;
 		for (Ss::Vertex_handle vh = iss->vertices_begin(); vh != iss->vertices_end(); vh++) {
-			radius = max(radius,(float) vh->time());
+			if (!vh->has_infinite_time()) {
+				radius = max(radius, (float)vh->time());
+			}
 		}
 
 		//estimate radius
@@ -886,9 +891,27 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			IntPoint iPt(v.x * scaling, v.y * scaling);
 			P.push_back(iPt);
 		}
+		Paths simplerP;
+		SimplifyPolygon(P, simplerP);
+		CleanPolygons(simplerP);
+		P = simplerP[0];
+		//CleanPolygon(P);
+		//Polygon_2 poly;
+		//for (auto & pt : P) {
+		//	poly.push_back(Point_2(pt.X, pt.Y));
+		//}
+		//boost::shared_ptr<Ss> iss = CGAL::create_interior_straight_skeleton_2(poly.vertices_begin(), poly.vertices_end());
+		//float radius = 0;
+		//for (Ss::Vertex_handle vh = iss->vertices_begin(); vh != iss->vertices_end(); vh++) {
+		//	if (!vh->has_infinite_time()) {
+		//		radius = max(radius, (float)vh->time());
+		//	}
+		//}
+		
 		//Paths simplerP;
 		//SimplifyPolygon(P, simplerP);
 		//co.AddPaths(simplerP, jtRound, etClosedPolygon);
+		//radius = ofClamp(radius*offsetPercent, minThick*0.5*scaling, maxThick*0.5*scaling);
 		co.AddPath(P, jtRound, etClosedPolygon);
 		co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
