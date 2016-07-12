@@ -22,8 +22,8 @@ float h = 1050; //1000
 float maxDensity(50);//200 90 //150 810
 float minDensity(10);//18 //30  200
 
-float maxDensity2(16);
-float minDensity2(3);
+float maxDensity2(30);
+float minDensity2(10);
 float anisotrophyStr(.7f);
 
 float etchOffset = 2.85;
@@ -34,20 +34,20 @@ float anisoLerpRamp = .5;
 float rando = .5;
 
 bool paused = false;
-bool cleanEdge = false;
+bool cleanEdge = true;
 bool drawFill = true;
 //for metal jewelry
-//float minThick = 9.9f;
-//float maxThick = minThick * 2.0f;
+float minThick = 9.9f;
+float maxThick = minThick * 3.0f;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 //for fabric
-float minThick = 6.0f;
-float maxThick = 10.0f;
+//float minThick = 6.0f;
+//float maxThick = 10.0f;
 float offsetPercent = 0.2f;
 
-String imageName = "bodice_top_only2.png";
+String imageName = "shapes/darts.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
