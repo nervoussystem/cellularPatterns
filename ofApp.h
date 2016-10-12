@@ -36,6 +36,7 @@ class ofApp : public ofBaseApp{
 
 		void setupImage();
 		void reset();
+		ofImage generateNecklaceShape();
 
 		vector<AnisoPoint2f> pts;
 

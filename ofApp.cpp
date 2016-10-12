@@ -36,10 +36,9 @@ float rando = .5;
 bool paused = false;
 bool cleanEdge = true;
 bool drawFill = true;
-//for metal jewelry
-float minThick = 9.9f;
-float maxThick = minThick * 3.0f;
 //for rubber 
+float minThick = 4.0f;
+float maxThick = 9.9f;
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 //for fabric
@@ -47,7 +46,7 @@ float maxThick = minThick * 3.0f;
 //float maxThick = 10.0f;
 float offsetPercent = 0.2f;
 
-String imageName = "shapes/darts.png";
+String imageName = "compex2.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -75,8 +74,9 @@ int boundaryIndex = 0;
 //--------------------------------------------------------------
 void ofApp::setup(){
 	ofSeedRandom(ofGetSystemTimeMicros());
-	baseImage.load(imageName);
-	setupImage();	
+	//baseImage.load(imageName);
+	baseImage = generateNecklaceShape();
+	setupImage();
 	
 	//important thing
 	//anisotropy function - give it a pt in space and it returns an anisotropic pt
@@ -84,7 +84,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSet;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtNoise;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -110,6 +110,73 @@ void ofApp::setup(){
 	reset();
 }
 
+ofImage ofApp::generateNecklaceShape() {
+	ofFbo fbo;
+	fbo.allocate(1125, 1030);
+	fbo.begin();
+
+	ofBackground(0);
+	ofFill();
+	ofSetColor(255);
+
+	float noiseScale = 1.1;
+	float noiseVary1 = 120;
+	float noiseVary2 = 200;
+	float radius1 = 318.016;
+	float radius2 = 382.806;
+
+	ofVec3f center1(560.0, 975 - 589.297);
+	ofVec3f center2(560.0, 975 - 577.162);
+
+	//noiseDetail(2, .8);
+	int segs = 200;
+
+	ofBeginShape();
+	for (int i = 0; i<segs; ++i) {
+		float angle = i*TWO_PI / segs;
+		float dx = cos(angle);
+		float dy = sin(angle);
+
+		float cLimit = (cos(angle + PI) + 1)*0.5;
+		float radius = radius2 + cLimit*(noiseVary2*ofNoise(angle*noiseScale, 4.97) + noiseVary1*ofNoise(angle*noiseScale, 1.41));
+
+		ofVec3f p(dy*radius, -dx*radius);
+		p += center2;
+		ofVertex(p);
+	}
+	ofEndShape(OF_CLOSE);
+
+	
+	ofSetColor(0);
+	ofBeginShape();
+	for (int i = 0; i<segs; ++i) {
+		float angle = i*TWO_PI / segs;
+		float dx = cos(angle);
+		float dy = sin(angle);
+
+		float cLimit = (cos(angle + PI) + 1)*0.5;
+		float radius = radius1 + cLimit*noiseVary1*ofNoise(angle*noiseScale, 1.41);
+
+		ofVec3f p(dy*radius, -dx*radius);
+		p += center1;
+		ofVertex(p);
+	}
+	ofEndShape(OF_CLOSE);
+	
+	//make opening
+	ofBeginShape();
+	ofVertex(center1);
+	ofVertex(560, 0);
+	ofVertex(148.922, 0);
+	ofEndShape(OF_CLOSE);
+
+
+	fbo.end();
+	ofImage im;
+	im.allocate(1125, 975, OF_IMAGE_COLOR_ALPHA);
+	fbo.readToPixels(im.getPixels());
+	return im;
+}
 
 void ofApp::reset() {
 	

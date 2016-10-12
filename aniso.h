@@ -93,9 +93,14 @@ inline AnisoPoint2f getAnisoPtSet(const ofVec3f &pt) {
 inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	Vector2f pos;
 	pos << pt.x, pt.y;
+	ofVec2f centerPt(560, 385.7);
 	//ofVec2f dir = pt-ofVec2f(34.0,40.0);
-	ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
+	//ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
+	ofVec2f dir = pt - centerPt;
 	dir.normalize();
+
+	dir.rotate(90);
+	dir.rotate((ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir)-.5)*90);
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
 	//float size = ofLerp(minDensity, maxDensity, ofClamp(pt.distance(ofVec3f(375, 525))/500,0,1));
 	float size = ofLerp(minDensity, maxDensity, ofNoise(pt.x*noiseScale, pt.y*noiseScale));
