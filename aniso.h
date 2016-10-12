@@ -20,6 +20,7 @@ extern float anisoLerpRamp;
 static float noiseScale = .002;// .001;
 extern float rando;// .001;
 static float noiseScaleDir = .002;// .002;
+extern float baseAngle;
 
 extern vector<ofVec2f> patternPts;
 extern vector<float> patternPtRads;
@@ -99,7 +100,7 @@ inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	ofVec2f dir = pt - centerPt;
 	dir.normalize();
 	float dy = dir.y;
-	float angle = 90 + (ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir) - .5,rando) * 90;
+	float angle = baseAngle + (ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir) - .5,rando) * 90;
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
 	//float size = ofLerp(minDensity, maxDensity, ofClamp(pt.distance(ofVec3f(375, 525))/500,0,1));
 	float size = ofLerp(minDensity, maxDensity, ofNoise(pt.x*noiseScale, pt.y*noiseScale,rando));

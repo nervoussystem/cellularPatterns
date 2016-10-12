@@ -32,6 +32,7 @@ float filletPercent = .5;
 float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
 float rando = .5;
+float baseAngle = 90;
 
 float edgeMultiplier = 3;
 
@@ -68,6 +69,8 @@ AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
+int currNumber = 0;
+bool gogo = false;
 bool doEtchOffset = false;
 float maxImgDist = 0;
 Mat imgDist, imgMask;
@@ -112,11 +115,12 @@ void ofApp::setup(){
 	setupGui();
 
 	reset();
+	record = true;
 }
 
 ofImage ofApp::generateNecklaceShape() {
 	ofFbo fbo;
-	fbo.allocate(1125, 1030);
+	fbo.allocate(1125, 1060);
 	fbo.begin();
 
 	ofBackground(0);
@@ -190,6 +194,7 @@ void ofApp::reset() {
 	rando = ofRandom(20);
 	anisotrophyStr = ofRandom(.65, .9);
 	edgeMultiplier = ofRandom(2, 6);
+	baseAngle = ofRandom(90);
 	baseImage = generateNecklaceShape();
 	baseImage.save("baseImg.png");
 
@@ -202,6 +207,19 @@ void ofApp::reset() {
 	bins.resize(binW*binH);
 	for (int i = 0; i < bins.size(); ++i)bins[i].clear();
 	initPts();
+
+	optThread.setup(pts);
+	optThread.w = w;
+	optThread.h = h;
+	optThread.minDensity = minDensity;
+	optThread.maxDensity = maxDensity;
+	//isOptimizing = true;
+	optThread.startThread(true, true);
+	long start = ofGetElapsedTimeMillis();
+	while (optThread.isThreadRunning() && ofGetElapsedTimeMillis()-start < 30000) {
+	}
+	optThread.stopThread();
+	pts = optThread.pts;
 	getDistances();
 	dualContour();
 	offsetCells();
@@ -331,26 +349,32 @@ bool ofApp::addPt(ofVec3f & pt) {
 
 //--------------------------------------------------------------
 void ofApp::update() {
+	if (gogo) {
+		reset();
+		record = true;
+		currNumber++;
+	}
 	if (!paused) {
-	if (isOptimizing) {
-		if (!optThread.isThreadRunning()) {
-			isOptimizing = false;
-			pts = optThread.pts;
-			getDistances();
-			dualContour();
-			offsetCells();
-			cout << "done" << endl;
-		}
-		else if (ofGetFrameNum() % 20 == 0) {
-			optThread.lock();
-			pts = optThread.pts;
-			optThread.unlock();
-			getDistances();
-			dualContour();
-			offsetCells();
+		if (isOptimizing) {
+			if (!optThread.isThreadRunning()) {
+				isOptimizing = false;
+				pts = optThread.pts;
+				getDistances();
+				dualContour();
+				offsetCells();
+				cout << "done" << endl;
+			}
+			else if (ofGetFrameNum() % 20 == 0) {
+				optThread.lock();
+				pts = optThread.pts;
+				optThread.unlock();
+				getDistances();
+				dualContour();
+				offsetCells();
+			}
 		}
 	}
-}
+	
 }
 
 void ofApp::setupStage2() {
@@ -369,8 +393,8 @@ void ofApp::draw(){
 	ofSetColor(255);
 
 	std::ostringstream ss;
-	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << "_thick_" << minThick << "-" << maxThick << "_" << ofGetTimestampString() << ".pdf";
-
+	//ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << "_thick_" << minThick << "-" << maxThick << "_" << ofGetTimestampString() << ".pdf";
+	ss << "corollaria_" << currNumber << ".pdf";
 	ofPushMatrix();
 	ofTranslate(drawOffsetX, 0);
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
@@ -573,7 +597,7 @@ void ofApp::getDistances() {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
 					
 					float weirdEdgeMultiplier = edgeMultiplier; //the smaller it is it more frilly the edge is
-					if (claspImg.getColor(x, y).r > 200 && claspImg.getColor(x,y).a > 100) {
+					if ((y < claspImg.getHeight()) &&(claspImg.getColor(x, y).r > 200 && claspImg.getColor(x,y).a > 100)) {
 						weirdEdgeMultiplier = 500;
 
 					}
@@ -990,9 +1014,9 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			P.push_back(iPt);
 		}
 		CleanPolygon(P);
-		//Paths simplerP;
-		//SimplifyPolygon(P, simplerP);
-		//CleanPolygons(simplerP);
+		Paths simplerP;
+		SimplifyPolygon(P, simplerP);
+		CleanPolygons(simplerP);
 		//P = simplerP[0];
 		//CleanPolygon(P);
 		//Polygon_2 poly;
@@ -1009,9 +1033,23 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		
 		//Paths simplerP;
 		//SimplifyPolygon(P, simplerP);
-		//co.AddPaths(simplerP, jtRound, etClosedPolygon);
 		//radius = ofClamp(radius*offsetPercent, minThick*0.5*scaling, maxThick*0.5*scaling);
-		co.AddPath(P, jtRound, etClosedPolygon);
+		//co.AddPath(P, jtRound, etClosedPolygon);
+		Paths toOffset;
+		int pLen = 0;
+		for (auto & oP : simplerP) {
+			float len = 0;
+			for (int i = 0; i < oP.size(); ++i) {
+				auto p1 = oP[i];
+				auto p2 = oP[(i + 1) % oP.size()];
+
+				len += sqrt((p1.X - p2.X)*(p1.X - p2.X) + (p1.Y - p2.Y)*(p1.Y - p2.Y));
+			}
+			if (len > 10 * scaling) {
+				toOffset.push_back(oP);
+			}
+		}
+		co.AddPaths(toOffset, jtRound, etClosedPolygon);
 		co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
 		if (offsetP.size() > 0) {
@@ -1022,9 +1060,9 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 				co.Execute(offsetP, etchOffset*scaling);
 			}
 			else {
-				co.Clear();
-				co.AddPaths(offsetP, jtRound, etClosedPolygon);
-				co.Execute(offsetP, 1);
+				//co.Clear();
+				//co.AddPaths(offsetP, jtRound, etClosedPolygon);
+				//co.Execute(offsetP, 1);
 			}
 			Path longestP;
 			int pLen = 0;
@@ -1056,7 +1094,27 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, float amt) {
 		ofVec3f v = linesMesh.getVertex(index);
 		P.push_back(IntPoint(v.x*scaling, v.y*scaling));
 	}
-	co.AddPath(P, jtRound, etClosedPolygon);
+	CleanPolygon(P);
+
+	Paths simplerP;
+	SimplifyPolygon(P, simplerP);
+	CleanPolygons(simplerP);
+
+	Paths toOffset;
+	int pLen = 0;
+	for (auto & oP : simplerP) {
+		float len = 0;
+		for (int i = 0; i < oP.size(); ++i) {
+			auto p1 = oP[i];
+			auto p2 = oP[(i + 1) % oP.size()];
+
+			len += sqrt((p1.X - p2.X)*(p1.X - p2.X) + (p1.Y - p2.Y)*(p1.Y - p2.Y));
+		}
+		if (len > 20 * scaling) {
+			toOffset.push_back(oP);
+		}
+	}
+	co.AddPaths(toOffset, jtRound, etClosedPolygon);
 	co.Execute(offsetP, -offset*scaling);
 
 	vector<ofVec3f> offsetPts;
