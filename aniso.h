@@ -98,12 +98,18 @@ inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	//ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
 	ofVec2f dir = pt - centerPt;
 	dir.normalize();
-
-	dir.rotate(90);
-	dir.rotate((ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir)-.5)*90);
+	float dy = dir.y;
+	float angle = 90 + (ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir) - .5,rando) * 90;
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
 	//float size = ofLerp(minDensity, maxDensity, ofClamp(pt.distance(ofVec3f(375, 525))/500,0,1));
-	float size = ofLerp(minDensity, maxDensity, ofNoise(pt.x*noiseScale, pt.y*noiseScale));
+	float size = ofLerp(minDensity, maxDensity, ofNoise(pt.x*noiseScale, pt.y*noiseScale,rando));
+
+	if (dy < -0.48) {
+		size = ofLerp(34, size, ofClamp((dy+.717)/(.717-.48),0,1));
+
+		angle = ofLerp(0,angle, ofClamp((dy + .717) / (.717 - .48), 0, 1));
+	}
+	dir.rotate(angle);
 
 	Matrix2f jac;
 	jac << size*anisotrophyStr*dir.y, size/ anisotrophyStr*dir.x, -size*anisotrophyStr*dir.x, size/anisotrophyStr*dir.y;

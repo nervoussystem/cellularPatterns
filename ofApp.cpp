@@ -20,7 +20,7 @@ float w = 750; //750
 float h = 1050; //1000
 
 float maxDensity(50);//200 90 //150 810
-float minDensity(10);//18 //30  200
+float minDensity(8);//18 //30  200
 
 float maxDensity2(30);
 float minDensity2(10);
@@ -33,9 +33,11 @@ float sizeFallOffExp = .75;
 float anisoLerpRamp = .5;
 float rando = .5;
 
+float edgeMultiplier = 3;
+
 bool paused = false;
-bool cleanEdge = true;
-bool drawFill = true;
+bool cleanEdge = false;
+bool drawFill = false;
 //for rubber 
 float minThick = 4.0f;
 float maxThick = 9.9f;
@@ -119,7 +121,7 @@ ofImage ofApp::generateNecklaceShape() {
 	ofFill();
 	ofSetColor(255);
 
-	float noiseScale = 1.1;
+	float noiseScale = ofRandom(0.9,1.2);// 1.1;
 	float noiseVary1 = 120;
 	float noiseVary2 = 200;
 	float radius1 = 318.016;
@@ -128,6 +130,8 @@ ofImage ofApp::generateNecklaceShape() {
 	ofVec3f center1(560.0, 975 - 589.297);
 	ofVec3f center2(560.0, 975 - 577.162);
 
+	float rand1 = ofRandom(0, 10);
+	float rand2 = ofRandom(0, 10);
 	//noiseDetail(2, .8);
 	int segs = 200;
 
@@ -138,7 +142,7 @@ ofImage ofApp::generateNecklaceShape() {
 		float dy = sin(angle);
 
 		float cLimit = (cos(angle + PI) + 1)*0.5;
-		float radius = radius2 + cLimit*(noiseVary2*ofNoise(angle*noiseScale, 4.97) + noiseVary1*ofNoise(angle*noiseScale, 1.41));
+		float radius = radius2 + cLimit*(noiseVary2*ofNoise(angle*noiseScale, rand2) + noiseVary1*ofNoise(angle*noiseScale, rand1));
 
 		ofVec3f p(dy*radius, -dx*radius);
 		p += center2;
@@ -155,7 +159,7 @@ ofImage ofApp::generateNecklaceShape() {
 		float dy = sin(angle);
 
 		float cLimit = (cos(angle + PI) + 1)*0.5;
-		float radius = radius1 + cLimit*noiseVary1*ofNoise(angle*noiseScale, 1.41);
+		float radius = radius1 + cLimit*noiseVary1*ofNoise(angle*noiseScale, rand1);
 
 		ofVec3f p(dy*radius, -dx*radius);
 		p += center1;
@@ -179,7 +183,10 @@ ofImage ofApp::generateNecklaceShape() {
 }
 
 void ofApp::reset() {
-	
+	rando = ofRandom(20);
+	baseImage = generateNecklaceShape();
+	setupImage();
+
 	binW = floor(w / max(minDensity,maxDensity)) + 1;
 	binH = floor(h / max(minDensity,maxDensity)) + 1;
 	
@@ -557,7 +564,7 @@ void ofApp::getDistances() {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
 					
-					float weirdEdgeMultiplier = 4; //the smaller it is it more frilly the edge is
+					float weirdEdgeMultiplier = edgeMultiplier; //the smaller it is it more frilly the edge is
 					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*weirdEdgeMultiplier);// IndexDist(pts.size(), 0);
 				}
 			}
