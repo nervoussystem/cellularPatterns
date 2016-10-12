@@ -20,7 +20,7 @@ float w = 750; //750
 float h = 1050; //1000
 
 float maxDensity(50);//200 90 //150 810
-float minDensity(8);//18 //30  200
+float minDensity(9);//18 //30  200
 
 float maxDensity2(30);
 float minDensity2(10);
@@ -40,14 +40,14 @@ bool paused = false;
 bool cleanEdge = false;
 bool drawFill = false;
 //for rubber 
-float minThick = 4.0f;
-float maxThick = 9.9f;
+float minThick = 5.0f;
+float maxThick = 10.0f;
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 //for fabric
 //float minThick = 6.0f;
 //float maxThick = 10.0f;
-float offsetPercent = 0.2f;
+float offsetPercent = 0.15f;
 
 String imageName = "compex2.png";
 ofImage claspImg;
@@ -70,7 +70,7 @@ vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
 int currNumber = 0;
-bool gogo = false;
+bool gogo = true;
 bool doEtchOffset = false;
 float maxImgDist = 0;
 Mat imgDist, imgMask;
@@ -128,8 +128,8 @@ ofImage ofApp::generateNecklaceShape() {
 	ofSetColor(255);
 
 	float noiseScale = ofRandom(0.9,1.2);// 1.1;
-	float noiseVary1 = 120;
-	float noiseVary2 = 200;
+	float noiseVary1 = 100;
+	float noiseVary2 = 180;
 	float radius1 = 318.016;
 	float radius2 = 382.806;
 
