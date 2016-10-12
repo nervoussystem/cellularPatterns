@@ -49,6 +49,7 @@ float maxThick = 9.9f;
 float offsetPercent = 0.2f;
 
 String imageName = "compex2.png";
+ofImage claspImg;
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -75,6 +76,7 @@ Mat imgGradX, imgGradY;
 int boundaryIndex = 0;
 //--------------------------------------------------------------
 void ofApp::setup(){
+	claspImg.load("clasp2.png");
 	ofSeedRandom(ofGetSystemTimeMicros());
 	//baseImage.load(imageName);
 	baseImage = generateNecklaceShape();
@@ -168,12 +170,14 @@ ofImage ofApp::generateNecklaceShape() {
 	ofEndShape(OF_CLOSE);
 	
 	//make opening
-	ofBeginShape();
-	ofVertex(center1);
-	ofVertex(560, 0);
-	ofVertex(148.922, 0);
-	ofEndShape(OF_CLOSE);
+	//ofBeginShape();
+	//ofVertex(center1);
+	//ofVertex(560, 0);
+	//ofVertex(148.922, 0);
+	//ofEndShape(OF_CLOSE);
 
+	ofSetColor(255);
+	claspImg.draw(0,0);
 
 	fbo.end();
 	ofImage im;
@@ -184,7 +188,11 @@ ofImage ofApp::generateNecklaceShape() {
 
 void ofApp::reset() {
 	rando = ofRandom(20);
+	anisotrophyStr = ofRandom(.65, .9);
+	edgeMultiplier = ofRandom(2, 6);
 	baseImage = generateNecklaceShape();
+	baseImage.save("baseImg.png");
+
 	setupImage();
 
 	binW = floor(w / max(minDensity,maxDensity)) + 1;
@@ -565,6 +573,10 @@ void ofApp::getDistances() {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
 					
 					float weirdEdgeMultiplier = edgeMultiplier; //the smaller it is it more frilly the edge is
+					if (claspImg.getColor(x, y).r > 200 && claspImg.getColor(x,y).a > 100) {
+						weirdEdgeMultiplier = 500;
+
+					}
 					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*weirdEdgeMultiplier);// IndexDist(pts.size(), 0);
 				}
 			}
@@ -578,8 +590,8 @@ void ofApp::getDistances() {
 		for (int y = 0; y < h; ++y) {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0) {
-					if(distances[(w*y + x) * 3 + 1].index != pts.size())
-						distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
+					//if(distances[(w*y + x) * 3 + 1].index != pts.size())
+					//	distances[(w*y + x) * 3].dist = distances[(w*y + x) * 3+1 ].dist*.95;
 				}
 			}
 		}
