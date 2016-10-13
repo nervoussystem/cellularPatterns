@@ -41,13 +41,13 @@ bool cleanEdge = false;
 bool drawFill = false;
 //for rubber 
 float minThick = 5.0f;
-float maxThick = 10.0f;
+float maxThick = 12.0f;
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 //for fabric
 //float minThick = 6.0f;
 //float maxThick = 10.0f;
-float offsetPercent = 0.15f;
+float offsetPercent = 0.18f;
 
 String imageName = "compex2.png";
 ofImage claspImg;
@@ -79,7 +79,7 @@ Mat imgGradX, imgGradY;
 int boundaryIndex = 0;
 //--------------------------------------------------------------
 void ofApp::setup(){
-	claspImg.load("clasp2.png");
+	claspImg.load("clasp3.png");
 	ofSeedRandom(ofGetSystemTimeMicros());
 	//baseImage.load(imageName);
 	baseImage = generateNecklaceShape();
@@ -130,11 +130,11 @@ ofImage ofApp::generateNecklaceShape() {
 	float noiseScale = ofRandom(0.9,1.2);// 1.1;
 	float noiseVary1 = 100;
 	float noiseVary2 = 180;
-	float radius1 = 318.016;
-	float radius2 = 382.806;
+	float radius1 = 308.094;// 318.016;
+	float radius2 = 364.235;// 382.806;
 
 	ofVec3f center1(560.0, 975 - 589.297);
-	ofVec3f center2(560.0, 975 - 577.162);
+	ofVec3f center2(560.0, 975 - 575.156);// 577.162);
 
 	float rand1 = ofRandom(0, 10);
 	float rand2 = ofRandom(0, 10);
@@ -147,7 +147,8 @@ ofImage ofApp::generateNecklaceShape() {
 		float dx = cos(angle);
 		float dy = sin(angle);
 
-		float cLimit = (cos(angle + PI) + 1)*0.5;
+		//float cLimit = 1 - (cos(angle) + 1)*0.5;
+		float cLimit = 1 - ofClamp(((cos(angle) + 1)*0.5) / .9, 0, 1);
 		float radius = radius2 + cLimit*(noiseVary2*ofNoise(angle*noiseScale, rand2) + noiseVary1*ofNoise(angle*noiseScale, rand1));
 
 		ofVec3f p(dy*radius, -dx*radius);
@@ -164,7 +165,7 @@ ofImage ofApp::generateNecklaceShape() {
 		float dx = cos(angle);
 		float dy = sin(angle);
 
-		float cLimit = (cos(angle + PI) + 1)*0.5;
+		float cLimit = 1 - ofClamp(((cos(angle) + 1)*0.5) / .866, 0, 1); 
 		float radius = radius1 + cLimit*noiseVary1*ofNoise(angle*noiseScale, rand1);
 
 		ofVec3f p(dy*radius, -dx*radius);
@@ -193,7 +194,8 @@ ofImage ofApp::generateNecklaceShape() {
 void ofApp::reset() {
 	rando = ofRandom(20);
 	anisotrophyStr = ofRandom(.65, .9);
-	edgeMultiplier = ofRandom(2, 6);
+	edgeMultiplier = ofRandom(2, 7);
+	maxDensity = ofRandom(40, 50);
 	baseAngle = ofRandom(90);
 	baseImage = generateNecklaceShape();
 	baseImage.save("baseImg.png");
@@ -397,11 +399,14 @@ void ofApp::draw(){
 	ss << "corollaria_" << currNumber << ".pdf";
 	ofPushMatrix();
 	ofTranslate(drawOffsetX, 0);
-	if (record) ofBeginSaveScreenAsPDF(ss.str());
+	if (record) {
+		ofBeginSaveScreenAsPDF(ss.str());
+		ofScale(0.716, 0.716);
+	}
 	//drawPtEllipses();
 	//distImage.draw(0,0);
 	//baseImage.draw(0,0);
-	ofSetColor(255);
+	ofSetColor(255,0,0);
 	//linesMesh.draw();
 	//if (record) {
 	/*

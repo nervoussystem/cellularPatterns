@@ -106,7 +106,7 @@ inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	float size = ofLerp(minDensity, maxDensity, ofNoise(pt.x*noiseScale, pt.y*noiseScale,rando));
 
 	if (dy < -0.42) {
-		size = ofLerp(34, size, ofClamp((dy+.68)/(.68-.42),0,1));
+		size = ofLerp(30, size, ofClamp((dy+.68)/(.68-.42),0,1));
 
 		angle = ofLerp(0,angle, ofClamp((dy + .68) / (.68 - .42), 0, 1));
 	}
