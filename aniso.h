@@ -221,11 +221,11 @@ inline AnisoPoint2f getAnisoEdge(const ofVec3f &pt) {
 		d = w - pt.x;
 	}
 
-
+	d = pt.x;
 	//ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
 	//dir.normalize();
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));
-	float lerpDistance = min(w, h) / 2.0f;
+	float lerpDistance = w;// min(w, h) / 2.0f;
 	float size = ofLerp(minDensity, maxDensity, ofClamp(d / lerpDistance, 0, 1));
 
 

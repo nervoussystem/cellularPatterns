@@ -50,7 +50,7 @@ public:
 
 	void OptimizerThread::initCcvt() {
 		stage = 0;			
-		int numFieldPts = (pts.size())*512;
+		int numFieldPts = (pts.size())*100;
 		fieldPts.clear();
 		MyPoint newPt;
 		

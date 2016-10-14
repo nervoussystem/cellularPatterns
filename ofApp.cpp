@@ -24,7 +24,7 @@ float minDensity(10);//18 //30  200
 
 float maxDensity2(30);
 float minDensity2(10);
-float anisotrophyStr(.7f);
+float anisotrophyStr(1.f);
 
 float etchOffset = 2.85;
 bool doSmooth = false;
@@ -47,7 +47,7 @@ float maxThick = minThick * 3.0f;
 //float maxThick = 10.0f;
 float offsetPercent = 0.2f;
 
-String imageName = "shapes/darts.png";
+String imageName = "rect.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -84,7 +84,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSet;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoEdge;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -108,6 +108,19 @@ void ofApp::setup(){
 	setupGui();
 
 	reset();
+
+	optThread.pts = pts;
+	optThread.w = w;
+	optThread.h = h;
+	optThread.minDensity = minDensity;
+	optThread.maxDensity = maxDensity;
+	optThread.startThread(true, true);
+	optThread.waitForThread();
+	pts = optThread.pts;
+
+	//getDistances();
+	//dualContour();
+	//offsetCells();
 }
 
 
@@ -292,6 +305,20 @@ void ofApp::draw(){
 	ofPushMatrix();
 	ofTranslate(drawOffsetX, 0);
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
+
+	const auto & entries = optThread.optimizer.entries();
+	auto it = entries.begin();
+	int ptNum = 0;
+	for (; it != entries.end();++it) {
+		int numPts = it->points.size();
+		ofFill();
+		ofSetColor(ofColor::fromHsb(ptNum%255,255,255));
+		for (int i = 0; i < numPts; ++i) {
+			ofDrawCircle(it->points[i][0], it->points[i][1], 1);
+		}
+		ptNum++;
+	}
+
 	//drawPtEllipses();
 	//distImage.draw(0,0);
 	//baseImage.draw(0,0);
@@ -323,9 +350,10 @@ void ofApp::draw(){
 		weight = ofClamp(weight, minThick, maxThick);
 
 		ofSetLineWidth(weight);
-		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));
-		
+		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));		
 	}*/
+
+	/*
 	int endIndex = cellOffsets.size();
 	if (drawFill) {
 		ofFill();
@@ -344,13 +372,12 @@ void ofApp::draw(){
 			ofEndShape(true);
 		}
 	}
+	*/
 	if (record) {
 		record = false;
 		ofEndSaveScreenAsPDF();
 	}
-
 	ofPopMatrix();
-
 }
 
 void ofApp::drawPtEllipses() {
