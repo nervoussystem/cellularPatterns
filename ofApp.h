@@ -47,7 +47,7 @@ class ofApp : public ofBaseApp{
 		vector<vector<list<int> > > cellLines;
 		vector<ofPoly > cellOffsets;
 
-		vector<ofVec3f> offsetCell(list<int> & crv, AnisoPoint2f & center);
+		vector<ofPoly> offsetCell(list<int> & crv, AnisoPoint2f & center);
 		vector<ofVec3f> offsetCell(list<int> & crv, float amt);
 
 		ofImage baseImage;
@@ -56,6 +56,7 @@ class ofApp : public ofBaseApp{
 		void getDistances();
 		void getDistance(int i);
 		void dualContour();
+		void progressAnimation();
 
 		void offsetCells();
 		void setupStage2();

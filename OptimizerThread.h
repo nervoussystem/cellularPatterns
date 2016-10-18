@@ -50,7 +50,7 @@ public:
 
 	void OptimizerThread::initCcvt() {
 		stage = 0;			
-		int numFieldPts = (pts.size())*100;
+		int numFieldPts = (pts.size())*256;
 		fieldPts.clear();
 		MyPoint newPt;
 		
@@ -69,27 +69,32 @@ public:
 
 		stage = 1;
 		optimizer.initialize(sites, fieldPts, metric);
+		for (int i = 0; i < 7; ++i) {
+			optimizer.optimize(false);
+		}
 	}
 
 	void OptimizerThread::ccvtStep() {
-	  stage = 2;
-	  bool stable = false;
-	  stability = 0;
-	  stability = optimizer.optimize(true);
+		stage = 2;
+		bool stable = false;
+		stability = 0;
+		stability = optimizer.optimize(true);
 
-	  while(stability < 1) {
-		  const Site<MyPoint>::Vector & sites = optimizer.sites();
-		  Site<MyPoint>::Vector::const_iterator it = sites.begin();
-		  lock();
-		  for (int i = 0; i<pts.size(); ++i) {
-			  pts[i] = it->location;
-			  it++;
-		  }
-		  unlock();
-		  for (int i = 0; i < 5; ++i) {
-			  stability = optimizer.optimize(true);
-		  }
-	  }
+		// while(stability < 1) {
+
+			//const Site<MyPoint>::Vector & sites = optimizer.sites();
+			//Site<MyPoint>::Vector::const_iterator it = sites.begin();
+			//lock();
+			//for (int i = 0; i < pts.size(); ++i) {
+			//	pts[i] = it->location;
+			//	it++;
+			//}
+			//unlock();
+			for (int i = 0; i < 2 && stability < .99; ++i) {
+				stability = optimizer.optimize(true);
+			}
+		
+	 // }
 	  const Site<MyPoint>::Vector & sites = optimizer.sites();
 	  Site<MyPoint>::Vector::const_iterator it = sites.begin();
 	  lock();

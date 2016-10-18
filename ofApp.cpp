@@ -6,11 +6,22 @@
 #include<CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include<CGAL/Polygon_2.h>
 #include<CGAL/create_straight_skeleton_2.h>
+#include <CGAL/Delaunay_triangulation_2.h>
+#include <CGAL/Delaunay_triangulation_adaptation_traits_2.h>
+#include <CGAL/Delaunay_triangulation_adaptation_policies_2.h>
+#include <CGAL/Voronoi_diagram_2.h>
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef K::Point_2                   Point_2;
 typedef CGAL::Polygon_2<K>           Polygon_2;
 typedef CGAL::Straight_skeleton_2<K> Ss;
+
+typedef CGAL::Delaunay_triangulation_2<K>                                    DT;
+typedef CGAL::Delaunay_triangulation_adaptation_traits_2<DT>                 AT;
+typedef CGAL::Delaunay_triangulation_caching_degeneracy_removal_policy_2<DT> AP;
+typedef CGAL::Voronoi_diagram_2<DT, AT, AP>                                    VD;
+
+typedef VD::Vertex_handle             Vertex_handle;
 
 using namespace ClipperLib;
 using namespace ofxCv;
@@ -19,35 +30,36 @@ using namespace cv;
 float w = 750; //750
 float h = 1050; //1000
 
-float maxDensity(50);//200 90 //150 810
-float minDensity(10);//18 //30  200
+float maxDensity(8.5);//200 90 //150 810
+float minDensity(40);//18 //30  200
 
 float maxDensity2(30);
 float minDensity2(10);
-float anisotrophyStr(1.f);
+float anisotrophyStr(1.0f);
 
 float etchOffset = 2.85;
 bool doSmooth = false;
 float filletPercent = .5;
-float sizeFallOffExp = .75;
+float sizeFallOffExp = 1.57;// .5;// .75;
 float anisoLerpRamp = .5;
 float rando = .5;
 
-bool paused = false;
-bool cleanEdge = true;
+bool paused = true;
+bool cleanEdge = false;
 bool drawFill = true;
 //for metal jewelry
-float minThick = 9.9f;
-float maxThick = minThick * 3.0f;
+float minThick = 9.0f;
+float maxThick = 19.8;// minThick * 3.0f;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 //for fabric
 //float minThick = 6.0f;
 //float maxThick = 10.0f;
-float offsetPercent = 0.2f;
+float offsetPercent = 0.15f;
 
-String imageName = "rect.png";
+String imageName = "circle.png";
+ofImage gradient;
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -66,12 +78,16 @@ AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
+int totalPts = 797;
 bool doEtchOffset = false;
 float maxImgDist = 0;
 Mat imgDist, imgMask;
 Mat imgGradX, imgGradY;
 
 int boundaryIndex = 0;
+ofFbo fbo;
+bool doAnim = true;
+
 //--------------------------------------------------------------
 void ofApp::setup(){
 	ofSeedRandom(ofGetSystemTimeMicros());
@@ -84,7 +100,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoEdge;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -103,24 +119,28 @@ void ofApp::setup(){
 	functionNames.push_back("sin");
 	functionNames.push_back("bamboo");
 	functionNames.push_back("side");
+	gradient.load("gradient3.jpg");
 	//minDensity = minDensity2;
 	//maxDensity = maxDensity2;
 	setupGui();
 
 	reset();
 
-	optThread.pts = pts;
-	optThread.w = w;
-	optThread.h = h;
-	optThread.minDensity = minDensity;
-	optThread.maxDensity = maxDensity;
-	optThread.startThread(true, true);
-	optThread.waitForThread();
-	pts = optThread.pts;
+	//optThread.pts = pts;
+	//optThread.w = w;
+	//optThread.h = h;
+	//optThread.minDensity = minDensity;
+	//optThread.maxDensity = maxDensity;
+	//optThread.initCcvt();
+	//optThread.startThread(true, true);
+	//optThread.waitForThread();
+	//pts = optThread.pts;
 
-	//getDistances();
-	//dualContour();
-	//offsetCells();
+	getDistances();
+	dualContour();
+	offsetCells();
+
+	fbo.allocate(baseImage.getWidth(), baseImage.getHeight(),6408,4);
 }
 
 
@@ -133,6 +153,16 @@ void ofApp::reset() {
 	bins.resize(binW*binH);
 	for (int i = 0; i < bins.size(); ++i)bins[i].clear();
 	initPts();
+	optThread.pts = pts;
+	optThread.w = w;
+	optThread.h = h;
+	optThread.minDensity = minDensity;
+	optThread.maxDensity = maxDensity;
+	//optThread.startThread(true, true);
+	//optThread.waitForThread();
+	optThread.initCcvt();
+	for (int i = 0; i < 10;++i) optThread.ccvtStep();
+	pts = optThread.pts;
 	getDistances();
 	dualContour();
 	offsetCells();
@@ -220,8 +250,72 @@ void ofApp::initPts() {
 				cout << pts.size() << endl;
 			}
 		}
+		if (pts.size() > 6) {
+			if(doAnim) break;
+		}
 		fail++;
 	}
+}
+
+void ofApp::progressAnimation() {
+	int numPtsToAdd = ofLerp(1, 10, pts.size()*1.0 / totalPts);
+	bool doSplit = false;
+	float splitProb = .02;
+	ofVec3f pt;
+	if (pts.size() < totalPts) {
+		int numPts = pts.size();
+		for (int i = 0; i < numPts; ++i) {
+			if (ofRandom(1.0) < splitProb) {
+				doSplit = true;
+				auto & pt = pts[i];
+				pts.push_back(getAnisoPoint(ofVec3f(pt[0] + ofRandom(-1, 1), pt[1] + ofRandom(-1, 1))));
+			}
+		}
+	}
+	/*
+	for (int j = 0; j < numPtsToAdd; ++j) {
+		while (true) {
+			pt = ofVec3f(ofRandom(w), ofRandom(h));
+			//check mask
+			if (!hasMask || imgDist.at<float>(min((int)pt.y, imgDist.rows - 1), min((int)pt.x, imgDist.cols - 1)) > 0) {
+				//density = ofLerp(maxDensity, minDensity, ofClamp(x/200.0,0,1));
+				if (addPt(pt)) {
+					break;
+				}
+			}
+		}
+	}
+	*/
+
+	
+	optThread.w = w;
+	optThread.h = h;
+	optThread.minDensity = minDensity;
+	optThread.maxDensity = maxDensity;
+	//optThread.startThread(true, true);
+	//optThread.waitForThread();
+	if (doSplit) {
+		optThread.pts = pts;
+		optThread.initCcvt();
+	}
+
+	optThread.ccvtStep();
+	//pts = optThread.pts;
+
+	Site<MyPoint>::Vector & sites = optThread.optimizer.sites();
+	//Site<MyPoint>::Vector::const_iterator it = sites.begin();
+	for (int i = 0; i < pts.size(); ++i) {
+		ofVec3f cPt(pts[i][0], pts[i][1]);
+		ofVec3f dPt(optThread.pts[i][0], optThread.pts[i][1]);
+		pts[i] = getAnisoPoint((cPt*0.6 + dPt*0.4));
+		sites[i].location = (MyPoint) pts[i];
+
+	}
+
+	getDistances();
+	dualContour();
+	offsetCells();
+
 }
 
 bool ofApp::addPt(ofVec3f & pt) {
@@ -263,25 +357,27 @@ bool ofApp::addPt(ofVec3f & pt) {
 //--------------------------------------------------------------
 void ofApp::update() {
 	if (!paused) {
-	if (isOptimizing) {
-		if (!optThread.isThreadRunning()) {
-			isOptimizing = false;
-			pts = optThread.pts;
-			getDistances();
-			dualContour();
-			offsetCells();
-			cout << "done" << endl;
+		progressAnimation();
+		if (isOptimizing) {
+			if (!optThread.isThreadRunning()) {
+				isOptimizing = false;
+				pts = optThread.pts;
+				getDistances();
+				dualContour();
+				offsetCells();
+				cout << "done" << endl;
+			}
+			else if (ofGetFrameNum() % 20 == 0) {
+				optThread.lock();
+				pts = optThread.pts;
+				optThread.unlock();
+				getDistances();
+				dualContour();
+				offsetCells();
+			}
 		}
-		else if (ofGetFrameNum() % 20 == 0) {
-			optThread.lock();
-			pts = optThread.pts;
-			optThread.unlock();
-			getDistances();
-			dualContour();
-			offsetCells();
-		}
+		
 	}
-}
 }
 
 void ofApp::setupStage2() {
@@ -295,30 +391,40 @@ void ofApp::setupStage2() {
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-	
-	ofBackground(0);
+	if(!paused && doAnim) fbo.begin();
+	ofBackground(255);
 	ofSetColor(255);
 
 	std::ostringstream ss;
 	ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << "_thick_" << minThick << "-" << maxThick << "_" << ofGetTimestampString() << ".pdf";
 
 	ofPushMatrix();
-	ofTranslate(drawOffsetX, 0);
+	if (!(!paused && doAnim)) ofTranslate(drawOffsetX, 0);
 	if (record) ofBeginSaveScreenAsPDF(ss.str());
 
+	/*
 	const auto & entries = optThread.optimizer.entries();
 	auto it = entries.begin();
 	int ptNum = 0;
 	for (; it != entries.end();++it) {
 		int numPts = it->points.size();
 		ofFill();
-		ofSetColor(ofColor::fromHsb(ptNum%255,255,255));
+		float ci = ofNoise(ptNum*2.38912);
+		ofColor c = gradient.getColor(ofRandom(gradient.getWidth()), ofRandom(gradient.getHeight()));
+		ofSetColor(c);
 		for (int i = 0; i < numPts; ++i) {
 			ofDrawCircle(it->points[i][0], it->points[i][1], 1);
 		}
 		ptNum++;
 	}
-
+	*/
+	/*
+	ofFill();
+	ofSetColor(0);
+	for (auto & p : pts) {
+		ofCircle(p[0], p[1], 2);
+	}
+	*/
 	//drawPtEllipses();
 	//distImage.draw(0,0);
 	//baseImage.draw(0,0);
@@ -353,11 +459,23 @@ void ofApp::draw(){
 		ofDrawLine(linesMesh.getVertex(linesMesh.getIndex(i)), linesMesh.getVertex(linesMesh.getIndex(i+1)));		
 	}*/
 
-	/*
+	
 	int endIndex = cellOffsets.size();
 	if (drawFill) {
 		ofFill();
 		endIndex = boundaryIndex;
+		ofSetColor(0);
+		for (int i = endIndex; i < cellOffsets.size(); ++i) {
+			auto & cell = cellOffsets[i];
+			if (cell.size() > 3) {
+				ofBeginShape();
+				for (auto & pt : cell) {
+					ofVertex(pt);
+				}
+				ofEndShape(true);
+			}
+		}
+		ofSetColor(255);
 	}
 	else {
 		ofNoFill();
@@ -372,7 +490,33 @@ void ofApp::draw(){
 			ofEndShape(true);
 		}
 	}
+	
+	if (!paused && doAnim) {
+		fbo.end();
+		ofImage im;
+		fbo.readToPixels(im.getPixels());
+		stringstream ss;
+		ss << "frame_" << ofGetFrameNum() << ".png";
+		im.save(ss.str());
+	}
+	
+	//draw voronax
+	/*
+	ofNoFill();
+	ofSetColor(255, 0, 0);
+	VD vd;
+	for (int i = 0; i < pts.size(); ++i) {
+		vd.insert(Point_2(pts[i][0],pts[i][1]));
+	}
+	for (auto it = vd.edges_begin(); it != vd.edges_end(); ++it) {
+		if (it->has_target() && it->has_source()) {
+			Point_2 p1 = it->source()->point();
+			Point_2 p2 = it->target()->point();
+			ofLine(p1.x(), p1.y(), p2.x(), p2.y());
+		}
+	}
 	*/
+	
 	if (record) {
 		record = false;
 		ofEndSaveScreenAsPDF();
@@ -418,10 +562,13 @@ void ofApp::getDistance(int i) {
 	vec(0) = max(abs(vec(0)), abs(vec2(0)));
 	vec(1) = max(abs(vec(1)), abs(vec2(1)));
 	list<int> indexStack;
-	int minX = max(0, (int)(pt[0] - vec(0) * 2.5));
-	int maxX = min((int)w - 1, (int)(pt[0] + vec(0) * 2.5));
-	int minY = max(0, (int)(pt[1] - vec(1) * 2.5));
-	int maxY = min((int)h - 1, (int)(pt[1] + vec(1) * 2.5));
+
+	float distMult = 2.5;
+	distMult = ofLerp(20, distMult, ofClamp(pts.size() / 300.0, 0, 1));
+	int minX = max(0, (int)(pt[0] - vec(0) * distMult));
+	int maxX = min((int)w - 1, (int)(pt[0] + vec(0) * distMult));
+	int minY = max(0, (int)(pt[1] - vec(1) * distMult));
+	int maxY = min((int)h - 1, (int)(pt[1] + vec(1) * distMult));
 
 	indexStack.push_back(yi*w + xi);
 	visited[yi*w + xi] = true;
@@ -517,7 +664,7 @@ void ofApp::getDistances() {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
 					
-					float weirdEdgeMultiplier = 4; //the smaller it is it more frilly the edge is
+					float weirdEdgeMultiplier = 2; //the smaller it is it more frilly the edge is
 					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*weirdEdgeMultiplier);// IndexDist(pts.size(), 0);
 				}
 			}
@@ -810,7 +957,11 @@ void ofApp::offsetCells() {
 	for (int i = 0; i < pts.size(); ++i) {
 		auto & cells = cellLines[i];
 		for (auto & line : cells) {
-			if (line.size() > 3)	cellOffsets.push_back(offsetCell(line, pts[i]));
+			//if (line.size() > 3)	cellOffsets.push_back(offsetCell(line, pts[i]));
+			if (line.size() > 3) {
+				auto lines = offsetCell(line, pts[i]);
+				cellOffsets.insert(cellOffsets.end(), lines.begin(), lines.end());
+			}
 		}
 	}
 	boundaryIndex = cellOffsets.size();
@@ -820,7 +971,7 @@ void ofApp::offsetCells() {
 	}
 }
 
-vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
+vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 	float scaling = 1000;
 	ClipperOffset co;
 	co.ArcTolerance = 1;
@@ -837,7 +988,7 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		}
 		co.AddPath(P, jtRound, etClosedPolygon);
 		co.Execute(offsetP, -offset*scaling);
-		if(offsetP.size() == 0) return vector<ofVec3f>();
+		if(offsetP.size() == 0) return vector<ofPoly>();
 		P.clear();
 		ofVec2f center;
 		for (auto & v : offsetP[0]) {
@@ -886,6 +1037,7 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		//radius = min(radius,(radius - offset*scaling)*filletPercent + offset*scaling);
 		
 		//co.Execute(offsetP, -offset*scaling);
+		vector<ofPoly> offsets;
 		vector<ofVec3f> offsetPts;
 		if (offsetP.size() > 0) {
 			//visual offset for etching
@@ -922,7 +1074,7 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 				offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
 			}
 		}
-		return offsetPts;
+		return offsets;
 	}
 	else {
 		for (auto index : crv) {
@@ -955,6 +1107,7 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		co.AddPath(P, jtRound, etClosedPolygon);
 		co.Execute(offsetP, -offset*scaling);
 		vector<ofVec3f> offsetPts;
+		vector<ofPoly> offsets;
 		if (offsetP.size() > 0) {
 			CleanPolygons(offsetP);
 			if (doEtchOffset) {
@@ -970,18 +1123,22 @@ vector<ofVec3f> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			Path longestP;
 			int pLen = 0;
 			for (auto & oP : offsetP) {
+				offsetPts.clear();
 				if (oP.size() > pLen) {
 					pLen = oP.size();
 					longestP = oP;
 				}
+
+				for (int i = 0; i < oP.size(); i++) {
+					ofVec3f pt3D(oP[i].X / scaling, oP[i].Y / scaling);
+					offsetPts.push_back(pt3D);
+				}
+				offsets.push_back(offsetPts);
 			}
-			Path & oP = longestP;
-			for (int i = 0; i < oP.size(); i++) {
-				ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
-				offsetPts.push_back(pt3D);
-			}
+			//Path & oP = longestP;
+			
 		}
-		return offsetPts;
+		return offsets;
 	}
 
 }
@@ -1045,6 +1202,7 @@ void ofApp::keyPressed(int key){
 		break;
 	case 'p':
 		paused = !paused;
+		break;
 	case 'a':
 		anisotrophyStr = 1.0 / anisotrophyStr;
 		break;

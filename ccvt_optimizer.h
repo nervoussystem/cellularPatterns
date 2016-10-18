@@ -372,7 +372,7 @@ namespace ccvt {
       return it == mapping_.end() || it->second->stable;
     }
 
-    inline const std::vector<Site>& sites() {
+    inline std::vector<Site>& sites() {
       return sites_;
     }
 
