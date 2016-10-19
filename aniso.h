@@ -94,7 +94,7 @@ inline AnisoPoint2f getAnisoPtSet(const ofVec3f &pt) {
 inline AnisoPoint2f getAnisoPtNoise(const ofVec3f &pt) {
 	Vector2f pos;
 	pos << pt.x, pt.y;
-	ofVec2f centerPt(560, 385.7);
+	ofVec2f centerPt(530, 385.7);
 	//ofVec2f dir = pt-ofVec2f(34.0,40.0);
 	//ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
 	ofVec2f dir = pt - centerPt;

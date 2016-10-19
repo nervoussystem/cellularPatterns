@@ -69,7 +69,7 @@ AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
-int currNumber = 0;
+int currNumber = 12;
 bool gogo = true;
 bool doEtchOffset = false;
 float maxImgDist = 0;
@@ -77,9 +77,10 @@ Mat imgDist, imgMask;
 Mat imgGradX, imgGradY;
 
 int boundaryIndex = 0;
+ofFbo outImg;
 //--------------------------------------------------------------
 void ofApp::setup(){
-	claspImg.load("clasp3.png");
+	claspImg.load("clasp4.png");
 	ofSeedRandom(ofGetSystemTimeMicros());
 	//baseImage.load(imageName);
 	baseImage = generateNecklaceShape();
@@ -116,11 +117,13 @@ void ofApp::setup(){
 
 	reset();
 	record = true;
+
+	outImg.allocate(baseImage.getWidth(), baseImage.getHeight(), 6408, 4);
 }
 
 ofImage ofApp::generateNecklaceShape() {
 	ofFbo fbo;
-	fbo.allocate(1125, 1060);
+	fbo.allocate(1060, 1060);
 	fbo.begin();
 
 	ofBackground(0);
@@ -133,8 +136,8 @@ ofImage ofApp::generateNecklaceShape() {
 	float radius1 = 308.094;// 318.016;
 	float radius2 = 364.235;// 382.806;
 
-	ofVec3f center1(560.0, 975 - 589.297);
-	ofVec3f center2(560.0, 975 - 575.156);// 577.162);
+	ofVec3f center1(530.0, 975 - 589.297);
+	ofVec3f center2(530.0, 975 - 575.156);// 577.162);
 
 	float rand1 = ofRandom(0, 10);
 	float rand2 = ofRandom(0, 10);
@@ -186,7 +189,7 @@ ofImage ofApp::generateNecklaceShape() {
 
 	fbo.end();
 	ofImage im;
-	im.allocate(1125, 975, OF_IMAGE_COLOR_ALPHA);
+	im.allocate(1060, 1060, OF_IMAGE_COLOR_ALPHA);
 	fbo.readToPixels(im.getPixels());
 	return im;
 }
@@ -220,6 +223,7 @@ void ofApp::reset() {
 	long start = ofGetElapsedTimeMillis();
 	while (optThread.isThreadRunning() && ofGetElapsedTimeMillis()-start < 30000) {
 	}
+	optThread.lock();
 	optThread.stopThread();
 	pts = optThread.pts;
 	getDistances();
@@ -396,11 +400,11 @@ void ofApp::draw(){
 
 	std::ostringstream ss;
 	//ss << "voronoi_dir" << anisotrophyStr << "_cellSz_" << minDensity << "-" << maxDensity << "_" << "_thick_" << minThick << "-" << maxThick << "_" << ofGetTimestampString() << ".pdf";
-	ss << "corollaria_" << currNumber << ".pdf";
+	ss << "corollaria_" << currNumber;;
 	ofPushMatrix();
 	ofTranslate(drawOffsetX, 0);
 	if (record) {
-		ofBeginSaveScreenAsPDF(ss.str());
+		ofBeginSaveScreenAsPDF(ss.str()+".pdf");
 		ofScale(0.716, 0.716);
 	}
 	//drawPtEllipses();
@@ -456,12 +460,46 @@ void ofApp::draw(){
 		}
 	}
 	if (record) {
-		record = false;
 		ofEndSaveScreenAsPDF();
 	}
-
 	ofPopMatrix();
 
+	if (record) {
+		record = false;
+		outImg.begin();
+		ofBackground(255);
+		int endIndex = boundaryIndex;
+		ofFill();
+		ofSetColor(0);
+		for (int i = endIndex; i < cellOffsets.size(); ++i) {
+			auto & cell = cellOffsets[i];
+			if (cell.size() > 3) {
+				ofBeginShape();
+				for (auto & pt : cell) {
+					ofVertex(pt);
+				}
+				ofEndShape(true);
+			}
+		}
+		ofSetColor(255);
+		for (int i = 0; i < endIndex; ++i) {
+			auto & cell = cellOffsets[i];
+			if (cell.size() > 3) {
+				ofBeginShape();
+				for (auto & pt : cell) {
+					ofVertex(pt);
+				}
+				ofEndShape(true);
+			}
+		}
+
+		outImg.end();
+
+		ofImage im;
+		im.allocate(1060, 1060, OF_IMAGE_COLOR_ALPHA);
+		outImg.readToPixels(im.getPixels());
+		im.save(ss.str() + ".png");
+	}
 }
 
 void ofApp::drawPtEllipses() {
