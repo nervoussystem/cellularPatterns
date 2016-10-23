@@ -143,7 +143,14 @@ inline AnisoPoint2f getAnisoPointPts(const ofVec3f &pt) {
 	float anisoness = ofLerp(1, anisotrophyStr,pow(t, anisoLerpRamp));
 	Matrix2f jac;
 	Vector2f dir = (*closest.jacobian).transpose()*(*closest.jacobian)*(pos - *closest.pt);
-	dir.normalize();
+	float len = dir.norm();
+	if (len > 1e-4) {
+		dir /= len;
+	}
+	else {
+		dir[1] = 1;
+	}
+	
 	jac << size*dir[1]* anisoness, size*dir[0]/ anisoness, -size*dir[0]* anisoness, size*dir[1]/ anisoness;
 	//jac << 10*dir.y, 5*dir.x, -10*dir.x, 5*dir.y;
 	//jac << size, 0.0, 0.0, size;

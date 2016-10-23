@@ -90,7 +90,7 @@ public:
 			//	it++;
 			//}
 			//unlock();
-			for (int i = 0; i < 2 && stability < .99; ++i) {
+			for (int i = 0; i < 1 && stability < .99; ++i) {
 				stability = optimizer.optimize(true);
 			}
 		

@@ -30,17 +30,17 @@ using namespace cv;
 float w = 750; //750
 float h = 1050; //1000
 
-float maxDensity(8.5);//200 90 //150 810
-float minDensity(40);//18 //30  200
+float maxDensity(220);//200 90 //150 810
+float minDensity(180);//18 //30  200
 
-float maxDensity2(30);
-float minDensity2(10);
-float anisotrophyStr(1.0f);
+float maxDensity2(50);
+float minDensity2(8.5);
+float anisotrophyStr(0.6f);
 
 float etchOffset = 2.85;
-bool doSmooth = false;
-float filletPercent = .5;
-float sizeFallOffExp = 1.57;// .5;// .75;
+bool doSmooth = true;
+float filletPercent = .4;
+float sizeFallOffExp = 0.38;// 1.57;// .5;// .75;
 float anisoLerpRamp = .5;
 float rando = .5;
 
@@ -48,15 +48,15 @@ bool paused = true;
 bool cleanEdge = false;
 bool drawFill = true;
 //for metal jewelry
-float minThick = 9.0f;
-float maxThick = 19.8;// minThick * 3.0f;
+float minThick = 2.0f;
+float maxThick = 24;// 19.8;// minThick * 3.0f;
 //for rubber 
 //float minThick = 5.0f; //.05 inches rubber
 //float maxThick = 9.9f;//minThick*2.0f; //.1 inches rubber
 //for fabric
 //float minThick = 6.0f;
 //float maxThick = 10.0f;
-float offsetPercent = 0.15f;
+float offsetPercent = 0.17f;
 
 String imageName = "circle.png";
 ofImage gradient;
@@ -78,7 +78,7 @@ AnisoPoint2f(*getAnisoPoint)(const ofVec3f & pt);
 vector<AnisoPoint2f(*)(const ofVec3f & pt) > anisoFunctions;
 vector<string> functionNames;
 
-int totalPts = 797;
+int totalPts = 1100;
 bool doEtchOffset = false;
 float maxImgDist = 0;
 Mat imgDist, imgMask;
@@ -100,7 +100,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSin;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtNoise;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -161,7 +161,8 @@ void ofApp::reset() {
 	//optThread.startThread(true, true);
 	//optThread.waitForThread();
 	optThread.initCcvt();
-	for (int i = 0; i < 10;++i) optThread.ccvtStep();
+	//optimize automatically
+	for (int i = 0; i < 20;++i) optThread.ccvtStep();
 	pts = optThread.pts;
 	getDistances();
 	dualContour();
@@ -297,6 +298,7 @@ void ofApp::progressAnimation() {
 	if (doSplit) {
 		optThread.pts = pts;
 		optThread.initCcvt();
+		cout << pts.size() << endl;
 	}
 
 	optThread.ccvtStep();
@@ -385,8 +387,19 @@ void ofApp::setupStage2() {
 	getAnisoPoint = &getAnisoPointPts;
 	minDensity  = minDensity2;
 	maxDensity  = maxDensity2;
-	anisotrophyStr = .6;// 1.0f / 1.4f;
-	reset();
+	anisotrophyStr = .75;// 1.0f / 1.4f;
+	
+	for (auto & pt : pts) {
+		ofVec3f v(pt[0], pt[1]);
+		v.x += ofRandom(-1, 1);
+		v.y += ofRandom(-1, 1);
+		pt = getAnisoPoint(v);
+	}
+
+	optThread.setup(pts);
+	optThread.initCcvt();
+
+	if(!doAnim)reset();
 }
 
 //--------------------------------------------------------------
@@ -418,13 +431,9 @@ void ofApp::draw(){
 		ptNum++;
 	}
 	*/
-	/*
-	ofFill();
-	ofSetColor(0);
-	for (auto & p : pts) {
-		ofCircle(p[0], p[1], 2);
-	}
-	*/
+	
+	
+	
 	//drawPtEllipses();
 	//distImage.draw(0,0);
 	//baseImage.draw(0,0);
@@ -498,6 +507,12 @@ void ofApp::draw(){
 		stringstream ss;
 		ss << "frame_" << ofGetFrameNum() << ".png";
 		im.save(ss.str());
+	}
+
+	ofFill();
+	ofSetColor(0);
+	for (auto & p : pts) {
+		ofCircle(p[0], p[1], 2);
 	}
 	
 	//draw voronax
@@ -664,7 +679,7 @@ void ofApp::getDistances() {
 			for (int x = 0; x < w; ++x) {
 				if (imgDist.at<float>(y, x) == 0 || !cleanEdge) {
 					
-					float weirdEdgeMultiplier = 2; //the smaller it is it more frilly the edge is
+					float weirdEdgeMultiplier = 10; //the smaller it is it more frilly the edge is
 					distances[(w*y + x) * 3] = IndexDist(pts.size(),imgDist.at<float>(y, x)*maxImgDist/(maxDensity+minDensity)*weirdEdgeMultiplier);// IndexDist(pts.size(), 0);
 				}
 			}
@@ -967,14 +982,14 @@ void ofApp::offsetCells() {
 	boundaryIndex = cellOffsets.size();
 	auto & cells = cellLines.back();
 	for (auto & line : cells) {
-		cellOffsets.push_back(offsetCell(line, -(minThick + maxThick)*0.25));
+		cellOffsets.push_back(offsetCell(line, -(minThick*0.75 + maxThick*0.25)*0.5));
 	}
 }
 
 vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
-	float scaling = 1000;
+	float scaling = 3000;
 	ClipperOffset co;
-	co.ArcTolerance = 1;
+	// co.ArcTolerance = 1;
 	Path P;
 	Paths offsetP;
 	float offset = ofClamp(offsetPercent / sqrt(pt.jacobian->determinant()), minThick*0.5, maxThick*0.5);
@@ -991,6 +1006,7 @@ vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		if(offsetP.size() == 0) return vector<ofPoly>();
 		P.clear();
 		ofVec2f center;
+		CleanPolygons(offsetP);
 		for (auto & v : offsetP[0]) {
 			//ofVec3f v = linesMesh.getVertex(index);
 			Vector2f p(v.X, v.Y);
@@ -1002,8 +1018,6 @@ vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		center /= crv.size();
 		CleanPolygon(P);
 		
-		co.Clear();
-		co.AddPath(P, jtRound, etClosedPolygon);
 		float radius = 9e20;
 
 		//get exact radius from straight skeleton
@@ -1032,6 +1046,27 @@ vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 		//	tries++;
 		//}
 		//cout << tries << endl;
+		if (radius < 200) {
+			cout << "small " << radius << endl;
+			float scaleFactor = 200 / radius;
+			P.clear();
+			center.set(0, 0);
+			for (auto & v : offsetP[0]) {
+				//ofVec3f v = linesMesh.getVertex(index);
+				Vector2f p(v.X, v.Y);
+				p = scaleFactor*(*pt.jacobian)*p;
+				IntPoint iPt(p.coeff(0), p.coeff(1));
+				P.push_back(iPt);
+				center += ofVec2f(iPt.X, iPt.Y);
+			}
+			scaling *= scaleFactor;
+			center /= crv.size();
+			radius = 200;
+		}
+		CleanPolygon(P);
+		co.Clear();
+		co.AddPath(P, jtRound, etClosedPolygon);
+
 		radius *= filletPercent;
 		co.Execute(offsetP, -radius);
 		//radius = min(radius,(radius - offset*scaling)*filletPercent + offset*scaling);
@@ -1048,13 +1083,22 @@ vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 			CleanPolygons(offsetP);
 			Path longestP;
 			int pLen = 0;
+			Matrix2f inverse = pt.jacobian->inverse();
+			
 			for (auto & oP : offsetP) {
 				if (oP.size() > pLen) {
 					pLen = oP.size();
 					longestP = oP;
 				}
+				for (int i = 0; i < oP.size(); i++) {
+					//ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
+					Vector2f anisoPt(oP[i].X / scaling, oP[i].Y / scaling);
+					if (!doEtchOffset)anisoPt = inverse*anisoPt;
+					offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
+				}
+				offsets.push_back(offsetPts);
 			}
-			Matrix2f inverse = pt.jacobian->inverse();
+			/*
 			if (doEtchOffset) {
 				co.Clear();
 				for (auto & lPt : longestP) {
@@ -1066,13 +1110,8 @@ vector<ofPoly> ofApp::offsetCell(list<int> & crv, AnisoPoint2f & pt) {
 				co.AddPath(longestP, jtRound, etClosedPolygon);
 				co.Execute(offsetP, etchOffset*scaling);
 				longestP = offsetP[0];
-			}
-			for (int i = 0; i < longestP.size(); i++) {
-				//ofVec3f pt3D(oP[i].X / scaling, oP[i].Y/ scaling);
-				Vector2f anisoPt(longestP[i].X / scaling, longestP[i].Y / scaling);
-				if(!doEtchOffset)anisoPt = inverse*anisoPt;
-				offsetPts.push_back(ofVec3f(anisoPt.coeff(0), anisoPt.coeff(1)));
-			}
+			}*/
+			
 		}
 		return offsets;
 	}
@@ -1193,6 +1232,9 @@ void ofApp::optimize() {
 void ofApp::keyPressed(int key){
 	ofTexture tempTex;
 	switch (key) {
+	case OF_KEY_RIGHT:
+		progressAnimation();
+		break;
 	case 'o':
 		cout << "optimize" << endl;
 		optimize();
