@@ -19,12 +19,12 @@ using namespace cv;
 float w = 750; //750
 float h = 1050; //1000
 
-float maxDensity(50);//200 90 //150 810
-float minDensity(10);//18 //30  200
+float maxDensity(15);//200 90 //150 810
+float minDensity(15);//18 //30  200
 
 float maxDensity2(30);
 float minDensity2(10);
-float anisotrophyStr(.7f);
+float anisotrophyStr(.71f);
 
 float etchOffset = 2.85;
 bool doSmooth = false;
@@ -47,7 +47,7 @@ float maxThick = minThick * 3.0f;
 //float maxThick = 10.0f;
 float offsetPercent = 0.2f;
 
-String imageName = "shapes/darts.png";
+String imageName = "ellipse20.png";
 //"circle25.4mm.png";
 //"circle12.7mm.png";
 //"circle40mm.png";
@@ -84,7 +84,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPtSet;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPt;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
