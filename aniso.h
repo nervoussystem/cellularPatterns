@@ -28,7 +28,7 @@ inline AnisoPoint2f getAnisoPt(const ofVec3f &pt) {
 	Vector2f pos;
 	pos << pt.x, pt.y;
 	ofVec2f centerPt(375, 525);
-	ofVec2f dir = ofVec2f(0, 1);// pt - centerPt;
+	ofVec2f dir = ofVec2f(1, 0);// pt - centerPt;
 	//ofVec2f dir(ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 10), ofNoise(pt.x*noiseScaleDir, pt.y*noiseScaleDir, 20.123));
 	dir.normalize();
 	//float size = ofLerp(5,9,ofClamp((pt.y-30)/300,0,1));

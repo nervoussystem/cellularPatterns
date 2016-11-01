@@ -296,7 +296,7 @@ void ofApp::draw(){
 	//distImage.draw(0,0);
 	//baseImage.draw(0,0);
 	ofSetColor(255);
-	//linesMesh.draw();
+	linesMesh.draw();
 	//if (record) {
 	/*
 	for (int i = 0; i < linesMesh.getNumIndices();i+=2) {
@@ -1005,6 +1005,24 @@ void ofApp::optimize() {
 	}
 }
 
+void ofApp::exportLines() {
+	stringstream ss;
+	ss << "voro_A" << anisotrophyStr << "_T" << minDensity / 20.0 << ".csv";
+	ofstream out(ofToDataPath(ss.str()));
+	for (int i = 0; i < linesMesh.getNumIndices(); i += 2) {
+		int index1 = linesMesh.getIndex(i);
+		int index2 = linesMesh.getIndex(i+1);
+		ofVec3f p1 = linesMesh.getVertex(index1);
+		ofVec3f p2 = linesMesh.getVertex(index2);
+		p1 /= 20;
+		p2 /= 20;
+		out << p1.x << "," << p1.y << "," << p1.z << "," << p2.x << "," << p2.y << "," << p2.z << "," << 0.25 << endl;
+	}
+	out.flush();
+	out.flush();
+
+}
+
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
 	ofTexture tempTex;
@@ -1026,6 +1044,8 @@ void ofApp::keyPressed(int key){
 		offsetCells();
 		break;
 	case 's':
+		exportLines();
+		/*
 		cleanEdge = true;
 		tempTex.allocate(baseImage.getPixels());
 		tempTex.loadScreenData(drawOffsetX, 0, baseImage.getWidth(), baseImage.getHeight());
@@ -1033,6 +1053,7 @@ void ofApp::keyPressed(int key){
 		baseImage.mirror(true, false);
 		baseImage.save("twesdf.png");
 		setupImage();
+		*/
 		break;
 	case 'f':
 		drawFill = !drawFill;

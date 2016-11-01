@@ -50,7 +50,7 @@ public:
 
 	void OptimizerThread::initCcvt() {
 		stage = 0;			
-		int numFieldPts = (pts.size())*512;
+		int numFieldPts = (pts.size())*1024;
 		fieldPts.clear();
 		MyPoint newPt;
 		
@@ -69,6 +69,7 @@ public:
 
 		stage = 1;
 		optimizer.initialize(sites, fieldPts, metric);
+		for (int i = 0; i < 6; ++i) optimizer.optimize(false);
 	}
 
 	void OptimizerThread::ccvtStep() {
