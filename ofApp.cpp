@@ -19,7 +19,7 @@ using namespace cv;
 float w = 750; //750
 float h = 1050; //1000
 
-float maxDensity(15);//200 90 //150 810
+float maxDensity(30);//200 90 //150 810
 float minDensity(15);//18 //30  200
 
 float maxDensity2(30);
@@ -84,7 +84,7 @@ void ofApp::setup(){
 	//getAnisoPtEdge - edge of the screen
 	//getAnisoPtNoise
 	//getAnisoPt - distance from a single Pt
-	getAnisoPoint = &getAnisoPt;// &getAnisoEdge;
+	getAnisoPoint = &getAnisoPtGrad;// &getAnisoEdge;
 	anisoFunctions.push_back(&getAnisoEdge);
 	anisoFunctions.push_back(&getAnisoPt);
 	anisoFunctions.push_back(&getAnisoPtSet);
@@ -1014,9 +1014,11 @@ void ofApp::exportLines() {
 		int index2 = linesMesh.getIndex(i+1);
 		ofVec3f p1 = linesMesh.getVertex(index1);
 		ofVec3f p2 = linesMesh.getVertex(index2);
+		float thickness = ofLerp(maxThick, minThick, abs((p1.x + p2.x)*0.5-w/2)/(w/2.0));
 		p1 /= 20;
 		p2 /= 20;
-		out << p1.x << "," << p1.y << "," << p1.z << "," << p2.x << "," << p2.y << "," << p2.z << "," << 0.25 << endl;
+		thickness /= 20;
+		out << p1.x << "," << p1.y << "," << p1.z << "," << p2.x << "," << p2.y << "," << p2.z << "," << thickness << endl;
 	}
 	out.flush();
 	out.flush();
